@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import date
 
 from quant_trader.core.errors import (
-    DataUnavailable,
+    DataUnavailableError,
     ProviderError,
-    TickerNotFound,
+    TickerNotFoundError,
 )
 from quant_trader.core.logging import get_logger
 from quant_trader.core.types import Bar, Granularity
@@ -37,7 +37,7 @@ class FallbackProvider:
             provider_name = getattr(provider, "name", type(provider).__name__)
             try:
                 return provider.fetch(ticker, start, end, granularity)
-            except TickerNotFound:
+            except TickerNotFoundError:
                 raise
             except ProviderError as exc:
                 log.warning(
@@ -47,4 +47,4 @@ class FallbackProvider:
                     reason=str(exc),
                 )
                 reasons.append(str(exc))
-        raise DataUnavailable(ticker, reasons)
+        raise DataUnavailableError(ticker, reasons)

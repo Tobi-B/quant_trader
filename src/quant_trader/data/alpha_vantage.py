@@ -10,7 +10,7 @@ import requests
 from quant_trader.core.errors import (
     ProviderError,
     RateLimitedError,
-    TickerNotFound,
+    TickerNotFoundError,
 )
 from quant_trader.core.types import Bar, Granularity
 
@@ -81,12 +81,12 @@ class AlphaVantageProvider:
         if "Error Message" in payload:
             msg = payload["Error Message"].lower()
             if "invalid api call" in msg or "not found" in msg:
-                raise TickerNotFound(ticker)
+                raise TickerNotFoundError(ticker)
             raise ProviderError(self.name, payload["Error Message"])
 
         series_key = _series_key(granularity, payload)
         if series_key is None or series_key not in payload:
-            raise TickerNotFound(ticker)
+            raise TickerNotFoundError(ticker)
 
         return _parse_series(payload[series_key], granularity, start, end)
 

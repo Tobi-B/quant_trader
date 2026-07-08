@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 
 @dataclass(frozen=True)
@@ -21,14 +21,14 @@ class Preset:
         }
 
 
-class Granularity(str, Enum):
+class Granularity(StrEnum):
     DAILY = "daily"
     INTRADAY_60M = "60m"
     INTRADAY_15M = "15m"
 
     @property
     def path_segment(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 @dataclass(frozen=True)

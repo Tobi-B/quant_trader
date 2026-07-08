@@ -7,7 +7,7 @@ from datetime import date, datetime
 import pandas as pd
 import yfinance as yf
 
-from quant_trader.core.errors import ProviderError, TickerNotFound
+from quant_trader.core.errors import ProviderError, TickerNotFoundError
 from quant_trader.core.types import Bar, Granularity
 
 
@@ -42,7 +42,7 @@ class YFinanceProvider:
             raise ProviderError(self.name, str(exc)) from exc
 
         if df.empty:
-            raise TickerNotFound(ticker)
+            raise TickerNotFoundError(ticker)
 
         return _dataframe_to_bars(df)
 

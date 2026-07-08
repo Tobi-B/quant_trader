@@ -19,7 +19,7 @@ class RateLimitedError(ProviderError):
     """Provider returned HTTP 429 or equivalent rate-limit response."""
 
 
-class TickerNotFound(DataError):
+class TickerNotFoundError(DataError):
     """The ticker does not exist on any provider."""
 
     def __init__(self, ticker: str) -> None:
@@ -27,7 +27,7 @@ class TickerNotFound(DataError):
         self.ticker = ticker
 
 
-class DataUnavailable(DataError):
+class DataUnavailableError(DataError):
     """All configured providers failed for a ticker."""
 
     def __init__(self, ticker: str, reasons: list[str]) -> None:
