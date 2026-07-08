@@ -7,7 +7,7 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Feld                | Wert                                                  |
 |---------------------|-------------------------------------------------------|
 | Letzte Aktualisierung | 2026-07-08                                          |
-| Letzter Commit        | 42b7405 ci: add GitHub Actions workflow              |
+| Letzter Commit        | 1172e20 docs(p0): add anti-context-rot harness       |
 | Aktuelle Phase        | P0 abgeschlossen, P1 bereit                          |
 | Aktueller Slice       | (noch keiner)                                         |
 | Status Slice          | DRAFT                                                 |
@@ -33,9 +33,9 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 
 ## Phase-Tags
 
-| Tag          | Beschreibung                  | Datum       |
-|--------------|--------------------------------|-------------|
-| (noch keiner)|                                |             |
+| Tag  | Beschreibung      | Datum       |
+|------|--------------------|-------------|
+| p0   | Harness + Bootstrap | 2026-07-08 |
 
 ## Wichtige Referenzen
 
