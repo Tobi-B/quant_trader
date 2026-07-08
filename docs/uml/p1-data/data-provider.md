@@ -24,7 +24,7 @@ Stories:
 classDiagram
     class DataService {
         -cache: ParquetCache
-        -provider: FallbackProvider
+        -provider: DataProvider
         +get(ticker, start, end, granularity) Bars
         +summary() FetchSummary
     }
@@ -34,22 +34,27 @@ classDiagram
         +write(ticker, granularity, bars) Path
         +covers(ticker, granularity, range) bool
     }
-    class FallbackProvider {
-        -primary: DataProvider
-        -secondary: DataProvider
-        +fetch(ticker, start, end) Bars
-    }
     class DataProvider {
         <<interface>>
-        +fetch(ticker, start, end) Bars
+        +fetch(ticker, start, end, granularity) Bars
+    }
+    class FallbackProvider {
+        -_primary: DataProvider
+        -_fallbacks: list~DataProvider~
+        +__init__(primary, fallbacks)
+        +fetch(ticker, start, end, granularity) Bars
     }
     class AlphaVantageProvider {
-        -api_key: str
-        -session: Session
-        +fetch(ticker, start, end) Bars
+        -_api_key: str
+        -_session: Session
+        +fetch(ticker, start, end, granularity) Bars
     }
     class YFinanceProvider {
-        +fetch(ticker, start, end) Bars
+        +fetch(ticker, start, end, granularity) Bars
+    }
+    class ProviderFactory {
+        <<module>>
+        +build_chain(settings) DataProvider
     }
     class FetchDataCLI {
         +main(args) int
@@ -63,14 +68,52 @@ classDiagram
 
     FetchDataCLI --> DataService
     DataService --> ParquetCache
-    DataService --> FallbackProvider
-    FallbackProvider --> AlphaVantageProvider
-    FallbackProvider --> YFinanceProvider
-    DataProvider <|.. AlphaVantageProvider
-    DataProvider <|.. YFinanceProvider
-    FallbackProvider ..> DataProvider
+    DataService --> DataProvider
+    FallbackProvider o-- DataProvider : wraps
+    DataProvider <|.. FallbackProvider : implements
+    DataProvider <|.. AlphaVantageProvider : implements
+    DataProvider <|.. YFinanceProvider : implements
+    ProviderFactory ..> FallbackProvider : builds
+    ProviderFactory ..> AlphaVantageProvider : instantiates
+    ProviderFactory ..> YFinanceProvider : instantiates
     DataService ..> FetchSummary
 ```
+
+Hinweis zur Beziehung: `FallbackProvider o-- DataProvider` ist Aggregation
+(offene Raute). Der Decorator haelt eine Referenz auf einen DataProvider,
+besitzt ihn aber nicht. Eine zweite Aggregation an die Liste ist ueber die
+Multiplizitaet `fallbacks: list~DataProvider~` ausgedrueckt.
+
+## Provider-Setup
+
+```mermaid
+sequenceDiagram
+    participant App as App startup
+    participant S as Settings
+    participant F as ProviderFactory
+    participant AV as AlphaVantageProvider
+    participant YF as YFinanceProvider
+    participant Dec as FallbackProvider
+    participant C as ParquetCache
+    participant DS as DataService
+
+    App->>S: load(env)
+    S-->>App: Settings(alphavantage_key, data_dir)
+    App->>F: build_chain(settings)
+    F->>AV: __init__(api_key=settings.alphavantage_key)
+    F->>YF: __init__()
+    F->>Dec: __init__(primary=AV, fallbacks=[YF])
+    Dec-->>F: ready
+    F-->>App: DataProvider (FallbackProvider instance)
+    App->>C: __init__(base_dir=settings.data_dir)
+    App->>DS: __init__(cache=C, provider=Dec)
+    App-->>App: DataService ready
+```
+
+Der Factory (`quant_trader.data.factory`) ist die einzige Stelle, an der die
+Provider-Instanzen erzeugt werden. Hinzufuegen eines weiteren Anbieters
+(z.B. Polygon spaeter) erfordert nur eine Aenderung in `ProviderFactory`,
+nicht in `DataService` oder `FallbackProvider`.
 
 ## Flow
 
@@ -80,26 +123,27 @@ flowchart TD
     B --> C[Load tickers from universe]
     C --> D[For each ticker]
     D --> E{ParquetCache.covers range?}
-    E -->|yes| F[Log: cache.hit, ticker]
+    E -->|yes| F[Log: cache.hit]
     F --> G[counter ok++]
     E -->|no| H[FallbackProvider.fetch ticker]
-    H --> I{primary ok?}
-    I -->|yes| J[Data available]
-    I -->|no| K[Log: provider.fallback reason]
-    K --> L{secondary ok?}
-    L -->|yes| J
-    L -->|no| M{primary says ticker not found?}
-    M -->|yes| N[Fail fast: ticker.not_found]
-    N --> Z1([Exit 1, no partial cache write])
-    M -->|no| O[Log: data.unavailable]
-    O --> Z2([Continue other tickers, counter failed++])
-    J --> P[ParquetCache.write ticker]
-    P --> Q[counter ok++]
-    G --> R{more tickers?}
-    Q --> R
-    R -->|yes| D
-    R -->|no| S[Log summary: ok, fallback, failed, duration]
-    S --> T([Exit 0])
+    H --> I[Loop: for provider in primary + fallbacks]
+    I --> J{provider ok?}
+    J -->|yes| K[Bars]
+    J -->|no| L[log provider.fallback reason]
+    L --> M{next provider?}
+    M -->|yes| I
+    M -->|no| N{last error = TickerNotFound?}
+    N -->|yes| O[Fail fast: ticker.not_found]
+    O --> Z1([Exit 1, no partial cache write])
+    N -->|no| P[Log: data.unavailable]
+    P --> Z2([Continue other tickers, counter failed++])
+    K --> Q[ParquetCache.write ticker]
+    Q --> R[counter ok++]
+    G --> S{more tickers?}
+    R --> S
+    S -->|yes| D
+    S -->|no| T[Log summary: ok, fallback, failed, duration]
+    T --> U([Exit 0])
 ```
 
 ## Sequence
@@ -110,7 +154,7 @@ sequenceDiagram
     participant CLI as FetchDataCLI
     participant DS as DataService
     participant C as ParquetCache
-    participant FP as FallbackProvider
+    participant Dec as FallbackProvider
     participant AV as AlphaVantageProvider
     participant YF as YFinanceProvider
     participant Log as structlog
@@ -126,34 +170,31 @@ sequenceDiagram
             DS->>Log: cache.hit(ticker)
         else cache miss
             C-->>DS: False
-            DS->>FP: fetch(ticker, start, end)
-            FP->>AV: fetch(ticker, start, end)
-            alt AV success
-                AV-->>FP: Bars
-            else AV error
-                AV-->>FP: raise ProviderError
-                FP->>Log: provider.fallback(reason=alpha_vantage.rate_limited)
-                FP->>YF: fetch(ticker, start, end)
-                alt YF success
-                    YF-->>FP: Bars
-                else YF error
-                    YF-->>FP: raise ProviderError
-                    alt error indicates unknown ticker
-                        FP-->>DS: raise TickerNotFound
-                        DS-->>CLI: raise TickerNotFound
-                        CLI-->>U: stderr: ticker.not_found: ZZZZZ, exit 1
-                    else other error
-                        FP-->>DS: raise DataUnavailable
-                        DS->>Log: data.unavailable(ticker, reason)
-                        DS-->>CLI: continue (counter failed++)
-                    end
+            DS->>Dec: fetch(ticker, start, end, daily)
+            loop for provider in primary + fallbacks
+                Dec->>provider: fetch(ticker, start, end, daily)
+                alt provider success
+                    provider-->>Dec: Bars
+                    Dec-->>DS: Bars (break loop)
+                else provider raises ProviderError
+                    provider-->>Dec: raise
+                    Dec->>Log: provider.fallback(provider=name, reason=...)
                 end
             end
-            FP-->>DS: Bars
-            DS->>C: write(ticker, daily, bars)
-            C-->>DS: path
+            alt TickerNotFound
+                Dec-->>DS: raise TickerNotFound
+                DS-->>CLI: raise TickerNotFound
+                CLI-->>U: stderr: ticker.not_found: ZZZZZ, exit 1
+            else DataUnavailable
+                Dec-->>DS: raise DataUnavailable
+                DS->>Log: data.unavailable(ticker, reason)
+                DS-->>CLI: continue (counter failed++)
+            else Bars received
+                DS->>C: write(ticker, daily, bars)
+                C-->>DS: path
+                DS-->>CLI: Bars
+            end
         end
-        DS-->>CLI: Bars
     end
     CLI->>Log: fetch.summary(ok=N, fallback=N, failed=N, duration_s=...)
     CLI-->>U: exit 0
