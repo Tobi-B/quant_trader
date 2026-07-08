@@ -1,7 +1,7 @@
 # Phase 1 - Datenlayer: User Stories
 
 Phase:    P1 Datenlayer
-Status:   DRAFT  (wartet auf APPROVED durch Nutzer)
+Status:   APPROVED (Story-Set am 2026-07-08)
 Persona:  Tobias (privater Einsteiger-Trader)
 Quelle:   Interview am 2026-07-08
 

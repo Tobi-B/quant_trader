@@ -1,9 +1,9 @@
 # UML: Slice 1.1 - Universe Loader
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P1 Datenlayer
 Slice:     1.1 Universe Loader
-Approved:  -
+Approved:  2026-07-08
 
 Mapped Requirements:
 - NFR-Sec-1: keine Secrets in Universe-Listen

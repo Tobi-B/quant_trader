@@ -1,9 +1,9 @@
 # UML: Slice 1.3 - Intraday-Support
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P1 Datenlayer
 Slice:     1.3 Intraday
-Approved:  -
+Approved:  2026-07-08
 
 Mapped Requirements:
 - NFR-Perf-2: Daten-Fetch-Performance-Budget (Intraday warnt)

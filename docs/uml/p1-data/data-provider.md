@@ -1,9 +1,9 @@
 # UML: Slice 1.2 - DataProvider + Cache
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P1 Datenlayer
 Slice:     1.2 DataProvider + Cache
-Approved:  -
+Approved:  2026-07-08
 
 Mapped Requirements:
 - NFR-Rel-1: Daten-Fetch idempotent
