@@ -7,15 +7,15 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Feld                | Wert                                                  |
 |---------------------|-------------------------------------------------------|
 | Letzte Aktualisierung | 2026-07-08                                          |
-| Letzter Commit        | 218444c docs(p1): mark slice 1.2 data-provider DONE  |
+| Letzter Commit        | 12da6cc test(p1): intraday granularity + quota       |
 | Aktuelle Phase        | P1 Datenlayer                                        |
 | Aktueller Slice       | 1.3 Intraday                                         |
-| Status Slice          | IN_PROGRESS                                          |
+| Status Slice          | DONE                                                 |
 
 ## Naechste Schritte
 
-1. Slice 1.3 (Intraday) - PRD + Implementation.
-2. Phase 1 abschliessen mit Tag p1-data.
+1. Phase 1 abschliessen mit Tag p1-data.
+2. Phase 2 (Core-Typen & Strategien) startet danach.
 
 ## Offene Blockers
 
@@ -26,7 +26,7 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Gate         | Status            |
 |--------------|-------------------|
 | `make lint`  | gruen             |
-| `make test`  | gruen (67/67)     |
+| `make test`  | gruen (73/73)     |
 | `make smoke` | gruen             |
 
 ## Phase-Tags
@@ -36,6 +36,7 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | p0            | Harness + Bootstrap                   | 2026-07-08 |
 | p1-universe   | Universe Loader (Stories 1.1)         | 2026-07-08 |
 | p1-data       | DataProvider + Cache (Stories 1.2)    | 2026-07-08 |
+| p1-intraday   | Intraday Support (Story 1.5)          | 2026-07-08 |
 
 ## Wichtige Referenzen
 
