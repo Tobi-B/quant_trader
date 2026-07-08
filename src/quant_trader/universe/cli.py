@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Sequence
+from collections.abc import Sequence
 
 from quant_trader.core.config import get_settings
 from quant_trader.core.logging import configure_logging, get_logger
