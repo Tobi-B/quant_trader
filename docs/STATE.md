@@ -7,14 +7,14 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Feld                | Wert                                                  |
 |---------------------|-------------------------------------------------------|
 | Letzte Aktualisierung | 2026-07-08                                          |
-| Letzter Commit        | 90217cc test(p1): universe loader tests              |
+| Letzter Commit        | 233c53f docs(p1): mark slice 1.1 universe-loader    |
 | Aktuelle Phase        | P1 Datenlayer                                        |
-| Aktueller Slice       | 1.1 Universe Loader                                  |
-| Status Slice          | DONE                                                 |
+| Aktueller Slice       | 1.2 DataProvider + Cache                             |
+| Status Slice          | IN_PROGRESS                                          |
 
 ## Naechste Schritte
 
-1. Slice 1.2 (DataProvider + Cache) - PRD + Implementation.
+1. Slice 1.2 (DataProvider + Cache) Implementation - laeuft.
 2. Slice 1.3 (Intraday) - PRD + Implementation.
 3. Phase 1 abschliessen mit Tag p1-data.
 
