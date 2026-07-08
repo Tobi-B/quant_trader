@@ -97,7 +97,7 @@ dax40:
     - ENR.DE
 
 etfs:
-  description: "Beliebte ETFs - breiter Markt, Anleihen, international."
+  description: "Beliebte ETFs - breiter Markt, Anleihen, international (yfinance-kompatibel)."
   tickers:
     - SPY
     - VOO
@@ -107,9 +107,6 @@ etfs:
     - AGG
     - TLT
     - EUNL.DE
-    - IWDA.AS
-    - IUSA.AS
-    - EIMI.AS
     - VNQ
     - GLD
     - SLV
