@@ -1,0 +1,116 @@
+sp500:
+  description: "S&P 500 - Starter-Set bekannter Ticker (kein Anspruch auf Vollstaendigkeit; in config/universe_presets.yaml erweitern)."
+  tickers:
+    - AAPL
+    - MSFT
+    - GOOGL
+    - GOOG
+    - AMZN
+    - NVDA
+    - META
+    - TSLA
+    - BRK.B
+    - JPM
+    - JNJ
+    - V
+    - PG
+    - XOM
+    - MA
+    - HD
+    - CVX
+    - ABBV
+    - BAC
+    - KO
+    - PEP
+    - AVGO
+    - PFE
+    - TMO
+    - COST
+    - MRK
+    - WMT
+    - DIS
+    - ABT
+    - CRM
+    - ACN
+    - NFLX
+    - ADBE
+    - VZ
+    - CMCSA
+    - DHR
+    - TXN
+    - NKE
+    - QCOM
+    - LIN
+    - PM
+    - NEE
+    - RTX
+    - HON
+    - UPS
+    - IBM
+    - SBUX
+    - MS
+    - AMD
+    - CAT
+
+dax40:
+  description: "DAX 40 - alle 40 DAX-Unternehmen (XETRA-Suffix .DE fuer yfinance)."
+  tickers:
+    - ADS.DE
+    - ALV.DE
+    - BAS.DE
+    - BAYN.DE
+    - BMW.DE
+    - BNR.DE
+    - CBK.DE
+    - CON.DE
+    - DTG.DE
+    - DBK.DE
+    - DB1.DE
+    - DHL.DE
+    - DTE.DE
+    - EOAN.DE
+    - FRE.DE
+    - FME.DE
+    - HEI.DE
+    - HNR1.DE
+    - IFX.DE
+    - INF.DE
+    - LHA.DE
+    - LIN.DE
+    - MBG.DE
+    - MRK.DE
+    - MTX.DE
+    - MUV2.DE
+    - NEM.DE
+    - PAH3.DE
+    - QIA.DE
+    - RWE.DE
+    - RHM.DE
+    - SAP.DE
+    - SIE.DE
+    - SHL.DE
+    - SY1.DE
+    - VNA.DE
+    - VOW3.DE
+    - WCH.DE
+    - ZAL.DE
+    - ENR.DE
+
+etfs:
+  description: "Beliebte ETFs - breiter Markt, Anleihen, international."
+  tickers:
+    - SPY
+    - VOO
+    - VTI
+    - QQQ
+    - IVV
+    - AGG
+    - TLT
+    - EUNL.DE
+    - IWDA.AS
+    - IUSA.AS
+    - EIMI.AS
+    - VNQ
+    - GLD
+    - SLV
+    - VEA
