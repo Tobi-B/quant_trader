@@ -7,17 +7,16 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Feld                | Wert                                                  |
 |---------------------|-------------------------------------------------------|
 | Letzte Aktualisierung | 2026-07-08                                          |
-| Letzter Commit        | 1172e20 docs(p0): add anti-context-rot harness       |
-| Aktuelle Phase        | P0 abgeschlossen, P1 bereit                          |
-| Aktueller Slice       | (noch keiner)                                         |
-| Status Slice          | DRAFT                                                 |
+| Letzter Commit        | 90217cc test(p1): universe loader tests              |
+| Aktuelle Phase        | P1 Datenlayer                                        |
+| Aktueller Slice       | 1.1 Universe Loader                                  |
+| Status Slice          | DONE                                                 |
 
 ## Naechste Schritte
 
-1. Phase 1 Interview: User-Stories fuer Datenlayer (nutzer-zentriert).
-2. Phase 1 UML-Diagramme draften (Structure, Flow, Sequence).
-3. APPROVED-Schleife mit Nutzer.
-4. Implementation in kleinen Commits.
+1. Slice 1.2 (DataProvider + Cache) - PRD + Implementation.
+2. Slice 1.3 (Intraday) - PRD + Implementation.
+3. Phase 1 abschliessen mit Tag p1-data.
 
 ## Offene Blockers
 
@@ -25,17 +24,18 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 
 ## Quality Gates
 
-| Gate     | Status            |
-|----------|-------------------|
-| `make lint`  | gruen (Phase 0) |
-| `make test`  | gruen (2/2)    |
-| `make smoke` | gruen (placeholder) |
+| Gate         | Status            |
+|--------------|-------------------|
+| `make lint`  | gruen             |
+| `make test`  | gruen (20/20)     |
+| `make smoke` | gruen (placeholder)|
 
 ## Phase-Tags
 
-| Tag  | Beschreibung      | Datum       |
-|------|--------------------|-------------|
-| p0   | Harness + Bootstrap | 2026-07-08 |
+| Tag           | Beschreibung                          | Datum       |
+|---------------|----------------------------------------|-------------|
+| p0            | Harness + Bootstrap                   | 2026-07-08 |
+| p1-universe   | Universe Loader (Stories 1.1)         | 2026-07-08 |
 
 ## Wichtige Referenzen
 
