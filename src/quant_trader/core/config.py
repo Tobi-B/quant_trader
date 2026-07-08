@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     universe_presets_path: Path = Path("./config/universe_presets.yaml")
     db_path: Path = Path("./quant_trader.sqlite")
     log_level: str = "INFO"
+    alphavantage_key: str = ""
 
 
 @lru_cache(maxsize=1)
