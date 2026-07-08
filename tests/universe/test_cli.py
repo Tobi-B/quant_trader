@@ -11,13 +11,13 @@ from quant_trader.universe.cli import main
 
 @pytest.fixture
 def isolated_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    monkeypatch.setenv("QTRADER_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
     cfg = tmp_path / "presets.yaml"
     cfg.write_text(
         "sp500:\n  description: Test\n  tickers: [AAPL, MSFT]\n",
         encoding="utf-8",
     )
-    monkeypatch.setenv("QTRADER_UNIVERSE_PRESETS_PATH", str(cfg))
+    monkeypatch.setenv("UNIVERSE_PRESETS_PATH", str(cfg))
     from quant_trader.core.config import get_settings
 
     get_settings.cache_clear()

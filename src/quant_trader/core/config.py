@@ -10,7 +10,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="QTRADER_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
@@ -21,6 +20,7 @@ class Settings(BaseSettings):
     db_path: Path = Path("./quant_trader.sqlite")
     log_level: str = "INFO"
     alphavantage_key: str = ""
+    stockdata_api_token: str = ""
 
 
 @lru_cache(maxsize=1)
