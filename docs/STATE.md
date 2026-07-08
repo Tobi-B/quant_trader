@@ -7,16 +7,15 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Feld                | Wert                                                  |
 |---------------------|-------------------------------------------------------|
 | Letzte Aktualisierung | 2026-07-08                                          |
-| Letzter Commit        | 233c53f docs(p1): mark slice 1.1 universe-loader    |
+| Letzter Commit        | 47d5368 test(p1): full data layer test suite         |
 | Aktuelle Phase        | P1 Datenlayer                                        |
 | Aktueller Slice       | 1.2 DataProvider + Cache                             |
-| Status Slice          | IN_PROGRESS                                          |
+| Status Slice          | DONE                                                 |
 
 ## Naechste Schritte
 
-1. Slice 1.2 (DataProvider + Cache) Implementation - laeuft.
-2. Slice 1.3 (Intraday) - PRD + Implementation.
-3. Phase 1 abschliessen mit Tag p1-data.
+1. Slice 1.3 (Intraday) - PRD + Implementation.
+2. Phase 1 abschliessen mit Tag p1-data.
 
 ## Offene Blockers
 
@@ -27,8 +26,8 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Gate         | Status            |
 |--------------|-------------------|
 | `make lint`  | gruen             |
-| `make test`  | gruen (20/20)     |
-| `make smoke` | gruen (placeholder)|
+| `make test`  | gruen (67/67)     |
+| `make smoke` | gruen             |
 
 ## Phase-Tags
 
@@ -36,6 +35,7 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 |---------------|----------------------------------------|-------------|
 | p0            | Harness + Bootstrap                   | 2026-07-08 |
 | p1-universe   | Universe Loader (Stories 1.1)         | 2026-07-08 |
+| p1-data       | DataProvider + Cache (Stories 1.2)    | 2026-07-08 |
 
 ## Wichtige Referenzen
 
