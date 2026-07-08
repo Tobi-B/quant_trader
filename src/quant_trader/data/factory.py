@@ -5,10 +5,14 @@ from __future__ import annotations
 from quant_trader.core.config import Settings
 from quant_trader.data.alpha_vantage import AlphaVantageProvider
 from quant_trader.data.fallback import FallbackProvider
+from quant_trader.data.stockdata_provider import StockDataProvider
 from quant_trader.data.yfinance_provider import YFinanceProvider
 
 
 def build_chain(settings: Settings) -> FallbackProvider:
     primary = AlphaVantageProvider(api_key=settings.alphavantage_key)
-    fallbacks = [YFinanceProvider()]
+    fallbacks = [
+        YFinanceProvider(),
+        StockDataProvider(api_token=settings.stockdata_api_token),
+    ]
     return FallbackProvider(primary=primary, fallbacks=fallbacks)
