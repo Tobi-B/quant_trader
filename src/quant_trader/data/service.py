@@ -32,6 +32,14 @@ class DataService:
         end: date,
         granularity: Granularity,
     ) -> FetchResult:
+        if granularity != Granularity.DAILY:
+            log.warning(
+                "intraday.api_quota_high",
+                ticker=ticker,
+                granularity=granularity.value,
+                hint="Intraday-Intervalle verbrauchen mehr API-Quota als Tagesdaten.",
+            )
+
         if self._cache.covers(ticker, granularity, start, end):
             log.info("cache.hit", ticker=ticker, granularity=granularity.value)
             bars = self._cache.read(ticker, granularity, start, end)
