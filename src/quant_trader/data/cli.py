@@ -16,7 +16,7 @@ from quant_trader.core.types import Granularity
 from quant_trader.data.cache import ParquetCache
 from quant_trader.data.factory import build_chain
 from quant_trader.data.service import DataService
-from quant_trader.universe.presets import PresetRepository
+from quant_trader.universe.presets import PresetNotFoundError, PresetRepository
 
 log = get_logger(__name__)
 
@@ -76,6 +76,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("entweder ticker oder --universe ist erforderlich")
 
     tickers = _resolve_tickers(args, settings.data_dir)
+    if tickers is None:
+        return 1
     start, end = _resolve_dates(args)
     granularity = Granularity(args.granularity)
 
@@ -122,12 +124,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _resolve_tickers(args: argparse.Namespace, data_dir: Path) -> list[str]:
+def _resolve_tickers(args: argparse.Namespace, data_dir: Path) -> list[str] | None:
     if args.ticker:
         return [args.ticker.upper()]
     settings = get_settings()
     repo = PresetRepository(settings.universe_presets_path)
-    preset = repo.get(args.universe)
+    try:
+        preset = repo.get(args.universe)
+    except PresetNotFoundError:
+        log.error(
+            "universe.preset_unknown",
+            preset=args.universe,
+            available=repo.names(),
+        )
+        return None
     return [t.upper() for t in preset.tickers]
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -29,11 +29,12 @@ class YFinanceProvider:
         granularity: Granularity,
     ) -> list[Bar]:
         interval = _INTERVAL_MAP[granularity]
+        end_inclusive = end + timedelta(days=1)
         try:
             df = yf.download(
                 ticker,
                 start=start.isoformat(),
-                end=end.isoformat(),
+                end=end_inclusive.isoformat(),
                 interval=interval,
                 auto_adjust=False,
                 progress=False,
