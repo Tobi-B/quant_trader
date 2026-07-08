@@ -86,3 +86,30 @@ def test_cache_read_returns_only_bars_in_range(tmp_path: Path) -> None:
     out = cache.read("SPY", Granularity.DAILY, date(2024, 1, 3), date(2024, 1, 3))
     assert len(out) == 1
     assert out[0].close == 101.0
+
+
+def test_cache_paths_are_separated_per_granularity(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("SPY", Granularity.DAILY, [_bar(2, 100.0)])
+
+    assert (tmp_path / "raw" / "daily" / "SPY.parquet").exists()
+    assert not (tmp_path / "raw" / "60m" / "SPY.parquet").exists()
+    assert cache.exists("SPY", Granularity.DAILY) is True
+    assert cache.exists("SPY", Granularity.INTRADAY_60M) is False
+    assert cache.exists("SPY", Granularity.INTRADAY_15M) is False
+
+
+def test_cache_intraday_writes_to_own_directory(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("AAPL", Granularity.INTRADAY_60M, [_bar(2, 195.0)])
+
+    assert (tmp_path / "raw" / "60m" / "AAPL.parquet").exists()
+    assert not (tmp_path / "raw" / "daily" / "AAPL.parquet").exists()
+
+
+def test_cache_intraday_covers_uses_correct_file(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("AAPL", Granularity.INTRADAY_60M, [_bar(2, 195.0), _bar(10, 200.0)])
+
+    assert cache.covers("AAPL", Granularity.INTRADAY_60M, date(2024, 1, 3), date(2024, 1, 9)) is True
+    assert cache.covers("AAPL", Granularity.INTRADAY_60M, date(2024, 1, 1), date(2024, 1, 31)) is False

@@ -94,3 +94,56 @@ def test_service_provider_error_propagates(tmp_path: Path) -> None:
 
     with pytest.raises(ProviderError):
         service.get("SPY", date(2024, 1, 2), date(2024, 1, 5), Granularity.DAILY)
+
+
+def _reset_service_log() -> None:
+    from quant_trader.core.logging import get_logger
+    import quant_trader.data.service as service_module
+
+    service_module.log = get_logger(service_module.__name__)
+
+
+def test_service_intraday_logs_quota_warning(tmp_path: Path) -> None:
+    from structlog.testing import capture_logs
+
+    _reset_service_log()
+    cache = ParquetCache(tmp_path)
+    provider = _FakeProvider("test")
+    service = DataService(cache=cache, provider=provider)
+
+    with capture_logs() as captured:
+        service.get("SPY", date(2024, 1, 2), date(2024, 1, 5), Granularity.INTRADAY_60M)
+
+    events = [entry["event"] for entry in captured]
+    assert "intraday.api_quota_high" in events
+    matching = [e for e in captured if e["event"] == "intraday.api_quota_high"]
+    assert matching[0]["granularity"] == "60m"
+    assert matching[0]["ticker"] == "SPY"
+
+
+def test_service_daily_does_not_log_quota_warning(tmp_path: Path) -> None:
+    from structlog.testing import capture_logs
+
+    _reset_service_log()
+    cache = ParquetCache(tmp_path)
+    provider = _FakeProvider("test")
+    service = DataService(cache=cache, provider=provider)
+
+    with capture_logs() as captured:
+        service.get("SPY", date(2024, 1, 2), date(2024, 1, 5), Granularity.DAILY)
+
+    events = [entry["event"] for entry in captured]
+    assert "intraday.api_quota_high" not in events
+
+
+def test_service_intraday_uses_separate_cache_path(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("SPY", Granularity.DAILY, [_bar(2, 100.0)])
+    provider = _FakeProvider("test")
+    service = DataService(cache=cache, provider=provider)
+
+    result = service.get("SPY", date(2024, 1, 2), date(2024, 1, 5), Granularity.INTRADAY_60M)
+
+    assert result.from_cache is False
+    assert cache.exists("SPY", Granularity.DAILY) is True
+    assert cache.exists("SPY", Granularity.INTRADAY_60M) is True
