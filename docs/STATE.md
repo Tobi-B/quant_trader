@@ -7,10 +7,10 @@ Single Source of Truth fuer "wo stehen wir gerade?". Wird nach jedem Commit aktu
 | Feld                | Wert                                                  |
 |---------------------|-------------------------------------------------------|
 | Letzte Aktualisierung | 2026-07-08                                          |
-| Letzter Commit        | 47d5368 test(p1): full data layer test suite         |
+| Letzter Commit        | 218444c docs(p1): mark slice 1.2 data-provider DONE  |
 | Aktuelle Phase        | P1 Datenlayer                                        |
-| Aktueller Slice       | 1.2 DataProvider + Cache                             |
-| Status Slice          | DONE                                                 |
+| Aktueller Slice       | 1.3 Intraday                                         |
+| Status Slice          | IN_PROGRESS                                          |
 
 ## Naechste Schritte
 
