@@ -7,13 +7,14 @@
 
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
-| Datum                 | 2026-07-08                                          |
-| Letzter Commit (main) | `bd66529`                                           |
+| Datum                 | 2026-07-10                                          |
+| Letzter Commit (main) | `22e6300`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
 | Tests                 | 84/84 gruen                                         |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P2 Strategien                                       |
-| Open Decision         | Phase-2-UML wartet auf User-APPROVED                  |
+| Aktiver Slice         | 2.1 Strategy Framework                              |
+| Open Decision         | Slice 2.1 Code -> go                                |
 
 ## Phasen-Tags (chronologisch)
 
@@ -23,7 +24,11 @@
 | `p1-universe`  | Universe Loader        | 2026-07-08  | abgeschlossen |
 | `p1-data`      | DataProvider + Cache   | 2026-07-08  | abgeschlossen |
 | `p1-intraday`  | Intraday Support       | 2026-07-08  | abgeschlossen |
-| `p2-strategies`| Strategien             | offen       | UML pending |
+| `p2-strategies/2.1` | Strategy Framework | 2026-07-10 | IN_PROGRESS (US+UML+PRD APPROVED, Code offen) |
+| `p2-strategies/2.2` | Trend (SMA + Momentum) | offen  | DRAFT      |
+| `p2-strategies/2.3` | Mean-Reversion (RSI) | offen  | DRAFT      |
+| `p2-strategies/2.4` | ETF-Rotation        | offen  | DRAFT      |
+| `p2-strategies/2.5` | Signal-Runner CLI   | offen  | DRAFT      |
 
 ## Was steht (verifiziert)
 
@@ -34,13 +39,15 @@
 - **Universe YAML**: `config/universe_presets.yaml` (sp500/dax40/etfs)
 - **.env (gitignored)**: AV-Key hinterlegt (Premium-Endpoint, daher Fallback-Kette aktiv)
 - **CLI-Smoke** 6 Schritte demonstriert in `Sprint-Demo` oben.
+- **P2 Doku APPROVED** (22e6300): US-P2.1+US-P2.2 freigegeben, framework.md
+  + runner.md UMLs APPROVED, Slice 2.1 PRD erstellt.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase-2-UML-Diagramme APPROVED                  | Nutzer     | `APPROVED` oder Aenderungen sagen   |
-| Slice 2.1-2.5 Implementation                   | nach OK    | User-Stories APPROVED + Diagramme   |
+| Slice 2.1 Implementation                       | nach Go    | types + base + loader + YAML + Tests |
+| Slice 2.2-2.5 Stories + UML freigeben           | spaeter    | nach 2.1 DONE                        |
 | Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Phase 2                          |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
@@ -51,19 +58,20 @@
 docs/STATE.md                       <- diese Datei
 docs/00_dev_workflow.md             <- Loop-Regeln (DE)
 docs/requirements/nfrs.md           <- 13 NFRs mit IDs
-docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1 ausgearbeitet)
+docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1 ausgearbeitet)
 docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1+P2)
 docs/uml/<phase>/<slice>.md         <- Mermaid (3 Typen, + State Machine bei Bedarf)
 src/quant_trader/
   core/        types, errors, config, logging
   universe/    loader (CLI fertig)
   data/        3 Provider + FallbackDecorator + Factory + Cache + Service + CLI
-strategies/    (P2 kommt)
+strategies/    (P2 kommt - Slice 2.1 als naechstes)
 backtest/      (P3 kommt)
 risk/          (P4 kommt)
 live/          (P5 kommt)
 storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
+config/strategies.yaml  (kommt mit Slice 2.1)
 tests/         84 Tests, marker slow/live/integration
 docs/architecture.md  (nicht erstellt - Mini-Hinweis: bei Bedarf)
 ```
@@ -73,9 +81,10 @@ docs/architecture.md  (nicht erstellt - Mini-Hinweis: bei Bedarf)
 ```
 Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md
        git log --oneline -30
-       docs/uml/p2-strategies/*.md
+       docs/prd/p2-strategies/framework.md
+       docs/uml/p2-strategies/framework.md
        docs/userstories/p2-strategies/strategies.md
-Frage: P2 UML approved? -> weiter mit Slice 2.1
+Frage: Slice 2.1 Code-Go? -> Code schreiben + Tests + Quality Gates
 ```
 
 ## Pflege
