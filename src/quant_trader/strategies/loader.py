@@ -73,7 +73,11 @@ class StrategyLoader:
             self._config[section_name] = dict(payload.get("params", {}))
         self._loaded = True
 
-    def load(self, name: str) -> StrategyBase | MultiTickerStrategyBase:
+    def load(
+        self,
+        name: str,
+        ticker: str = "",
+    ) -> StrategyBase | MultiTickerStrategyBase:
         self._ensure_loaded()
         if name not in self._registry:
             raise UnknownStrategyError(name, self.registered_names())
@@ -82,10 +86,15 @@ class StrategyLoader:
                 f"Strategie '{name}' nicht in {self._config_path} konfiguriert"
             )
         params = self._config[name]
-        instance = self._registry[name](params=params)
+        cls = self._registry[name]
+        if issubclass(cls, StrategyBase):
+            instance: StrategyBase | MultiTickerStrategyBase = cls(ticker=ticker, params=params)
+        else:
+            instance = cls(params=params)
         log.info(
             "strategy.loaded",
             name=name,
+            ticker=ticker,
             cls=type(instance).__name__,
             param_count=len(params),
         )

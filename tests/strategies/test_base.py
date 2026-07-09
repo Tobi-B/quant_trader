@@ -82,7 +82,7 @@ def test_constructor_params_override_defaults() -> None:
 
 
 def test_on_bar_returns_signals_based_on_params() -> None:
-    strategy = _SampleSingleTicker(params={"threshold": 50})
+    strategy = _SampleSingleTicker(ticker="SPY", params={"threshold": 50})
     bar = _bar(close=60.0)
     signals = strategy.on_bar(bar, PortfolioState())
     assert len(signals) == 1

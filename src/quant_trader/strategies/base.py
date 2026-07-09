@@ -17,13 +17,22 @@ class StrategyBase(ABC):
     (used as the registry key by `StrategyLoader`) and implement
     `warmup_bars` and `on_bar`. `default_params` is merged with the
     constructor's `params` argument (constructor values win).
+
+    Single-ticker strategies are bound to one ticker via the `ticker`
+    constructor argument; `on_bar` uses `self.ticker` to populate emitted
+    `Signal.ticker` values.
     """
 
     name: ClassVar[str] = ""
     version: ClassVar[str] = "1.0.0"
     default_params: ClassVar[dict[str, Any]] = {}
 
-    def __init__(self, params: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        ticker: str = "",
+        params: dict[str, Any] | None = None,
+    ) -> None:
+        self.ticker: str = ticker
         self.params: dict[str, Any] = {**self.default_params, **(params or {})}
 
     @abstractmethod
@@ -41,6 +50,7 @@ class MultiTickerStrategyBase(ABC):
     Subclasses set `name` and implement `warmup_bars` and `on_universe_bars`.
     Used by strategies that need to rank or compare across multiple tickers
     at a single point in time (e.g. momentum rotation, ETF top-N).
+    Signals emitted from `on_universe_bars` carry their ticker explicitly.
     """
 
     name: ClassVar[str] = ""
