@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-10                                          |
-| Letzter Commit (main) | `399c678`                                           |
+| Letzter Commit (main) | `bf1f9a9`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 142/142 gruen                                       |
+| Tests                 | 153/153 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P2 Strategien                                       |
-| Aktiver Slice         | 2.3 Mean-Reversion (RSI) - DRAFT                    |
-| Open Decision         | Slice 2.3 User-Story/UML APPROVED? -> Slice-PRD     |
+| Aktiver Slice         | 2.4 ETF-Rotation - DRAFT                            |
+| Open Decision         | Slice 2.4 User-Story/UML APPROVED? -> Slice-PRD     |
 
 ## Phasen-Tags (chronologisch)
 
@@ -26,7 +26,7 @@
 | `p1-intraday`  | Intraday Support       | 2026-07-08  | abgeschlossen |
 | `p2-strategies/2.1` | Strategy Framework | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.2` | Trend (SMA + Momentum) | 2026-07-10 | abgeschlossen |
-| `p2-strategies/2.3` | Mean-Reversion (RSI) | offen  | DRAFT      |
+| `p2-strategies/2.3` | Mean-Reversion (RSI) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.4` | ETF-Rotation        | offen  | DRAFT      |
 | `p2-strategies/2.5` | Signal-Runner CLI   | offen  | DRAFT      |
 
@@ -49,14 +49,16 @@
 - **Slice 2.2 DONE** (399c678): SmaCrossStrategy + MomentumStrategy
   implementiert. Framework-Erweiterung: `ticker` als Konstruktor-Param.
   22 neue Tests (test_sma_cross 9, test_momentum 11). 142/142 gruen.
+- **Slice 2.3 DONE** (bf1f9a9): RsiMeanReversionStrategy (simple-average RSI,
+  Cutler-Variante). 11 neue Tests. 153/153 gruen.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Slice 2.3 Stories + UML re-approven             | Nutzer     | US-P2.5 + RSI-UML                    |
-| Slice 2.3 Slice-PRD + Implementation            | nach OK    | RsiMeanReversionStrategy             |
-| Slices 2.4-2.5                                 | spaeter    | nach 2.3                             |
+| Slice 2.4 Stories + UML re-approven             | Nutzer     | US-P2.6 + rotation-UML              |
+| Slice 2.4 Slice-PRD + Implementation            | nach OK    | EtfRotationStrategy                  |
+| Slice 2.5                                       | spaeter    | Signal-Runner-CLI                    |
 | Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Phase 2                          |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
@@ -77,14 +79,14 @@ src/quant_trader/
   core/        types, errors, config, logging
   universe/    loader (CLI fertig)
   data/        3 Provider + FallbackDecorator + Factory + Cache + Service + CLI
-strategies/    types + base + loader + SmaCross + Momentum (2.1+2.2 DONE); RSI, ETF-Rotation, Runner folgen
+strategies/    types + base + loader + SmaCross + Momentum + RSI (2.1+2.2+2.3 DONE); ETF-Rotation, Runner folgen
 backtest/      (P3 kommt)
 risk/          (P4 kommt)
 live/          (P5 kommt)
 storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
-config/strategies.yaml  (sma_cross + momentum, mit 2.2 gekommen)
-tests/         142 Tests, marker slow/live/integration
+config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
+tests/         153 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)
@@ -94,8 +96,8 @@ Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md, docs/architecture.md
        git log --oneline -30
        docs/adr/ (welche ADRs sind accepted/proposed?)
        docs/userstories/p2-strategies/strategies.md
-       docs/uml/p2-strategies/rsi.md
-Frage: Slice 2.3 Stories/UML re-approven? -> Slice-PRD erstellen
+       docs/uml/p2-strategies/rotation.md
+Frage: Slice 2.4 Stories/UML re-approven? -> Slice-PRD erstellen
 ```
 
 ## Pflege
