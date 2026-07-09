@@ -1,9 +1,9 @@
 # UML: Slice 2.3 - Mean-Reversion (RSI)
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P2 Strategien
 Slice:     2.3 Mean-Reversion (RSI)
-Approved:  -
+Approved:  2026-07-10
 
 Mapped Requirements:
 - NFR-Perf-2: schnelle Berechnung
