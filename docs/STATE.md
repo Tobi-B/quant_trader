@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-10                                          |
-| Letzter Commit (main) | `53ab219`                                           |
+| Letzter Commit (main) | `0639c7e`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 84/84 gruen                                         |
+| Tests                 | 120/120 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P2 Strategien                                       |
-| Aktiver Slice         | 2.1 Strategy Framework                              |
-| Open Decision         | Slice 2.1 Code -> go                                |
+| Aktiver Slice         | 2.2 Trend (SMA + Momentum) - DRAFT                  |
+| Open Decision         | Slice 2.2 User-Story/UML APPROVED? -> Slice-PRD     |
 
 ## Phasen-Tags (chronologisch)
 
@@ -24,7 +24,7 @@
 | `p1-universe`  | Universe Loader        | 2026-07-08  | abgeschlossen |
 | `p1-data`      | DataProvider + Cache   | 2026-07-08  | abgeschlossen |
 | `p1-intraday`  | Intraday Support       | 2026-07-08  | abgeschlossen |
-| `p2-strategies/2.1` | Strategy Framework | 2026-07-10 | IN_PROGRESS (US+UML+PRD APPROVED, Code offen) |
+| `p2-strategies/2.1` | Strategy Framework | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.2` | Trend (SMA + Momentum) | offen  | DRAFT      |
 | `p2-strategies/2.3` | Mean-Reversion (RSI) | offen  | DRAFT      |
 | `p2-strategies/2.4` | ETF-Rotation        | offen  | DRAFT      |
@@ -43,16 +43,21 @@
   + runner.md UMLs APPROVED, Slice 2.1 PRD erstellt.
 - **Architecture-Doku** (53ab219): `docs/architecture.md` mit Layered-Overview,
   Module-Tabelle, Datenfluss. `docs/adr/` mit 8 ADRs (0001-0008).
+- **Slice 2.1 DONE** (0639c7e): Strategy Framework implementiert. 36 neue Tests
+  (test_types, test_base, test_loader). 120/120 gruen. Lint + Format gruen.
+  Registry-Pattern + ABC-Design via ADR 0007/0008 dokumentiert.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Slice 2.1 Implementation                       | nach Go    | types + base + loader + YAML + Tests |
-| Slice 2.2-2.5 Stories + UML freigeben           | spaeter    | nach 2.1 DONE                        |
+| Slice 2.2 Stories + UML re-approven             | Nutzer     | US-P2.3+US-P2.4 + Trend-UML         |
+| Slice 2.2 Slice-PRD + Implementation            | nach OK    | SmaCross + Momentum Strategies       |
+| Slices 2.3-2.5                                 | spaeter    | nach 2.2                             |
 | Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Phase 2                          |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
+| Pre-existing mypy-Errors in core/logging.py    | Optional   | 2 Lines Fix, nicht im Slice-Scope    |
 
 ## Repo-Layout zum Wiederfinden
 
@@ -69,14 +74,14 @@ src/quant_trader/
   core/        types, errors, config, logging
   universe/    loader (CLI fertig)
   data/        3 Provider + FallbackDecorator + Factory + Cache + Service + CLI
-strategies/    (P2 kommt - Slice 2.1 als naechstes)
+strategies/    types + base + loader (Slice 2.1 DONE); konkrete Strategien 2.2-2.4
 backtest/      (P3 kommt)
 risk/          (P4 kommt)
 live/          (P5 kommt)
 storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
-config/strategies.yaml  (kommt mit Slice 2.1)
-tests/         84 Tests, marker slow/live/integration
+config/strategies.yaml  (Skeleton, mit 2.1 gekommen)
+tests/         120 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)
@@ -85,10 +90,9 @@ tests/         84 Tests, marker slow/live/integration
 Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md, docs/architecture.md
        git log --oneline -30
        docs/adr/ (welche ADRs sind accepted/proposed?)
-       docs/prd/p2-strategies/framework.md
-       docs/uml/p2-strategies/framework.md
        docs/userstories/p2-strategies/strategies.md
-Frage: Slice 2.1 Code-Go? -> Code schreiben + Tests + Quality Gates
+       docs/uml/p2-strategies/trend.md
+Frage: Slice 2.2 Stories/UML re-approven? -> Slice-PRD erstellen
 ```
 
 ## Pflege
