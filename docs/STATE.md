@@ -8,7 +8,7 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-10                                          |
-| Letzter Commit (main) | `22e6300`                                           |
+| Letzter Commit (main) | `53ab219`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
 | Tests                 | 84/84 gruen                                         |
 | Lint + Format         | gruen                                               |
@@ -41,6 +41,8 @@
 - **CLI-Smoke** 6 Schritte demonstriert in `Sprint-Demo` oben.
 - **P2 Doku APPROVED** (22e6300): US-P2.1+US-P2.2 freigegeben, framework.md
   + runner.md UMLs APPROVED, Slice 2.1 PRD erstellt.
+- **Architecture-Doku** (53ab219): `docs/architecture.md` mit Layered-Overview,
+  Module-Tabelle, Datenfluss. `docs/adr/` mit 8 ADRs (0001-0008).
 
 ## Was offen ist
 
@@ -57,7 +59,9 @@
 ```
 docs/STATE.md                       <- diese Datei
 docs/00_dev_workflow.md             <- Loop-Regeln (DE)
+docs/architecture.md                <- Layered-Overview, Module-Tabelle, Datenfluss
 docs/requirements/nfrs.md           <- 13 NFRs mit IDs
+docs/adr/                           <- 8 Architecture Decision Records (0001-0008)
 docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1 ausgearbeitet)
 docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1+P2)
 docs/uml/<phase>/<slice>.md         <- Mermaid (3 Typen, + State Machine bei Bedarf)
@@ -73,14 +77,14 @@ storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
 config/strategies.yaml  (kommt mit Slice 2.1)
 tests/         84 Tests, marker slow/live/integration
-docs/architecture.md  (nicht erstellt - Mini-Hinweis: bei Bedarf)
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)
 
 ```
-Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md
+Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md, docs/architecture.md
        git log --oneline -30
+       docs/adr/ (welche ADRs sind accepted/proposed?)
        docs/prd/p2-strategies/framework.md
        docs/uml/p2-strategies/framework.md
        docs/userstories/p2-strategies/strategies.md
