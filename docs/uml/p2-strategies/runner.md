@@ -39,7 +39,7 @@ classDiagram
     }
     class PortfolioState {
         +cash: float
-        +positions: dict~str, float~
+        +positions: dict~str, int~
     }
 
     SignalRunnerCLI --> StrategyLoader

@@ -1,9 +1,9 @@
 # UML: Slice 2.1 - Strategy Framework
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P2 Strategien
 Slice:     2.1 Strategy Framework
-Approved:  -
+Approved:  2026-07-10
 
 Mapped Requirements:
 - NFR-Ux-1: klare API-Schnittstelle
@@ -21,6 +21,16 @@ classDiagram
         +name: str
         +on_bar(bar, portfolio) list~Signal~
         +warmup_bars() int
+    }
+    class MultiTickerStrategyBase {
+        <<interface>>
+        +name: str
+        +on_universe_bars(date, bars_by_ticker, portfolio) list~Signal~
+        +warmup_bars() int
+    }
+    class PortfolioState {
+        +cash: float
+        +positions: dict~str, int~
     }
     class Signal {
         +timestamp: datetime
@@ -46,6 +56,9 @@ classDiagram
     }
 
     StrategyBase ..> Signal
+    StrategyBase ..> PortfolioState
+    MultiTickerStrategyBase ..> Signal
+    MultiTickerStrategyBase ..> PortfolioState
     Signal ..> Action
     StrategyLoader ..> StrategyConfig
     StrategyLoader ..> StrategyBase

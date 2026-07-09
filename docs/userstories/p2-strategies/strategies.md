@@ -1,7 +1,7 @@
 # Phase 2 - Strategien: User Stories
 
 Phase:    P2 Strategien
-Status:   DRAFT  (wartet auf APPROVED durch Nutzer)
+Status:   APPROVED  (2026-07-10, US-P2.1 + US-P2.2 fuer Slice 2.1 freigegeben)
 Persona:  Tobias (privater Einsteiger-Trader)
 Quelle:   Interview am 2026-07-08
 
