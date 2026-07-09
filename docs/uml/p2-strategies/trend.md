@@ -24,6 +24,12 @@ classDiagram
         +on_bar(bar, portfolio) list~Signal~
         +warmup_bars() int
     }
+    class MultiTickerStrategyBase {
+        <<interface>>
+        +name: str
+        +on_universe_bars(date, bars_by_ticker, portfolio) list~Signal~
+        +warmup_bars() int
+    }
     class SmaCrossStrategy {
         -fast_period: int
         -slow_period: int
@@ -37,7 +43,7 @@ classDiagram
         -top_n: int
         -universe: list~str~
         +name: str = "momentum"
-        +on_bar(bar, portfolio) list~Signal~
+        +on_universe_bars(date, bars_by_ticker, portfolio) list~Signal~
         +warmup_bars() int
     }
     class Signal {
@@ -48,7 +54,7 @@ classDiagram
     }
 
     StrategyBase <|-- SmaCrossStrategy
-    StrategyBase <|-- MomentumStrategy
+    MultiTickerStrategyBase <|-- MomentumStrategy
     SmaCrossStrategy ..> Signal
     MomentumStrategy ..> Signal
 ```
@@ -97,5 +103,6 @@ sequenceDiagram
 ```
 
 Hinweis Momentum-Strategie arbeitet auf einem Universum von Bars, der SignalRunner
-muss alle Ticker laden und reihen. Per-Ticker on_bar genuegt nicht. Im 2.5-Slice-Runner
-wird das orchestriert oder wir definieren eine zweite on_universe-Methode.
+muss alle Ticker laden und reihen. Daher erbt `MomentumStrategy` von
+`MultiTickerStrategyBase` (Slice 2.1) statt von `StrategyBase`; der Runner in
+Slice 2.5 orchestriert den Aufruf von `on_universe_bars(date, bars_by_ticker, portfolio)`.
