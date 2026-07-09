@@ -18,3 +18,9 @@ momentum:
     skip_recent_months: 1
     top_n: 10
     rebalance_freq: monthly
+
+rsi_mean_reversion:
+  params:
+    period: 14
+    oversold: 30.0
+    overbought: 70.0

@@ -10,6 +10,7 @@ from quant_trader.strategies.errors import (
 )
 from quant_trader.strategies.loader import StrategyLoader
 from quant_trader.strategies.momentum import MomentumStrategy
+from quant_trader.strategies.rsi_mean_reversion import RsiMeanReversionStrategy
 from quant_trader.strategies.sma_cross import SmaCrossStrategy
 from quant_trader.strategies.types import Action, PortfolioState, Signal, StrategyConfig
 
@@ -18,6 +19,7 @@ __all__ = [
     "MomentumStrategy",
     "MultiTickerStrategyBase",
     "PortfolioState",
+    "RsiMeanReversionStrategy",
     "Signal",
     "SmaCrossStrategy",
     "StrategyBase",
@@ -40,4 +42,5 @@ def default_loader() -> StrategyLoader:
         _default_loader = StrategyLoader(get_settings().strategies_config_path)
         _default_loader.register(SmaCrossStrategy)
         _default_loader.register(MomentumStrategy)
+        _default_loader.register(RsiMeanReversionStrategy)
     return _default_loader
