@@ -1,0 +1,14 @@
+# Strategie-Parameter fuer die Backtest-Engine (Phase 2+).
+# Wird von StrategyLoader gelesen. Strategie-Klassen werden ueber die Registry
+# im jeweiligen Strategie-Modul registriert (siehe quant_trader.strategies).
+#
+# Konvention:
+#   <strategy_name>:
+#     params:
+#       <key>: <value>
+#
+# Beispiel (Slices 2.2-2.4):
+#   sma_cross:
+#     params:
+#       fast: 20
+#       slow: 50
