@@ -13,8 +13,8 @@
 | Tests                 | 153/153 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P2 Strategien                                       |
-| Aktiver Slice         | 2.4 ETF-Rotation - DRAFT                            |
-| Open Decision         | Slice 2.4 User-Story/UML APPROVED? -> Slice-PRD     |
+| Aktiver Slice         | 2.4 ETF-Rotation - IN_PROGRESS                      |
+| Open Decision         | -                                                    |
 
 ## Phasen-Tags (chronologisch)
 
@@ -27,7 +27,7 @@
 | `p2-strategies/2.1` | Strategy Framework | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.2` | Trend (SMA + Momentum) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.3` | Mean-Reversion (RSI) | 2026-07-10 | abgeschlossen |
-| `p2-strategies/2.4` | ETF-Rotation        | offen  | DRAFT      |
+| `p2-strategies/2.4` | ETF-Rotation        | 2026-07-10 | IN_PROGRESS |
 | `p2-strategies/2.5` | Signal-Runner CLI   | offen  | DRAFT      |
 
 ## Was steht (verifiziert)
@@ -51,13 +51,15 @@
   22 neue Tests (test_sma_cross 9, test_momentum 11). 142/142 gruen.
 - **Slice 2.3 DONE** (bf1f9a9): RsiMeanReversionStrategy (simple-average RSI,
   Cutler-Variante). 11 neue Tests. 153/153 gruen.
+- **Slice 2.4 IN_PROGRESS**: US-P2.6 + rotation-UML APPROVED
+  (2026-07-10). Slice-PRD `docs/prd/p2-strategies/etf-rotation.md`
+  erstellt. EtfRotationStrategy folgt.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Slice 2.4 Stories + UML re-approven             | Nutzer     | US-P2.6 + rotation-UML              |
-| Slice 2.4 Slice-PRD + Implementation            | nach OK    | EtfRotationStrategy                  |
+| Slice 2.4 Slice-PRD + Implementation            | opencode   | EtfRotationStrategy                  |
 | Slice 2.5                                       | spaeter    | Signal-Runner-CLI                    |
 | Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Phase 2                          |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
