@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-10                                          |
-| Letzter Commit (main) | `bf1f9a9`                                           |
+| Letzter Commit (main) | `ed3af58`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 153/153 gruen                                       |
+| Tests                 | 168/168 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P2 Strategien                                       |
-| Aktiver Slice         | 2.4 ETF-Rotation - IN_PROGRESS                      |
-| Open Decision         | -                                                    |
+| Aktiver Slice         | 2.5 Signal-Runner-CLI - DRAFT                       |
+| Open Decision         | Slice 2.5 Stories/UML re-approven                    |
 
 ## Phasen-Tags (chronologisch)
 
@@ -27,7 +27,7 @@
 | `p2-strategies/2.1` | Strategy Framework | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.2` | Trend (SMA + Momentum) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.3` | Mean-Reversion (RSI) | 2026-07-10 | abgeschlossen |
-| `p2-strategies/2.4` | ETF-Rotation        | 2026-07-10 | IN_PROGRESS |
+| `p2-strategies/2.4` | ETF-Rotation        | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.5` | Signal-Runner CLI   | offen  | DRAFT      |
 
 ## Was steht (verifiziert)
@@ -54,13 +54,18 @@
 - **Slice 2.4 IN_PROGRESS**: US-P2.6 + rotation-UML APPROVED
   (2026-07-10). Slice-PRD `docs/prd/p2-strategies/etf-rotation.md`
   erstellt. EtfRotationStrategy folgt.
+- **Slice 2.4 DONE** (ed3af58): EtfRotationStrategy (Top-N Momentum,
+  defensive Cash-Branch bei non-positive Returns). 15 neue Tests
+  (default / warmup / Param-Validierung / Warmup-Gate / Top-N-Buy /
+  Holder-dropped-Sell / Defensive-Cash / Same-Month-NoSignal /
+  Rebalance-Log / Loader-Integration). 168/168 gruen.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Slice 2.4 Slice-PRD + Implementation            | opencode   | EtfRotationStrategy                  |
-| Slice 2.5                                       | spaeter    | Signal-Runner-CLI                    |
+| Slice 2.5 Stories + UML re-approven             | Nutzer     | US-P2.7 + runner-UML                |
+| Slice 2.5 Slice-PRD + Implementation            | nach OK    | Signal-Runner-CLI (Smoke)           |
 | Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Phase 2                          |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
