@@ -8,6 +8,7 @@ from quant_trader.strategies.errors import (
     StrategyError,
     UnknownStrategyError,
 )
+from quant_trader.strategies.etf_rotation import EtfRotationStrategy
 from quant_trader.strategies.loader import StrategyLoader
 from quant_trader.strategies.momentum import MomentumStrategy
 from quant_trader.strategies.rsi_mean_reversion import RsiMeanReversionStrategy
@@ -16,6 +17,7 @@ from quant_trader.strategies.types import Action, PortfolioState, Signal, Strate
 
 __all__ = [
     "Action",
+    "EtfRotationStrategy",
     "MomentumStrategy",
     "MultiTickerStrategyBase",
     "PortfolioState",
@@ -43,4 +45,5 @@ def default_loader() -> StrategyLoader:
         _default_loader.register(SmaCrossStrategy)
         _default_loader.register(MomentumStrategy)
         _default_loader.register(RsiMeanReversionStrategy)
+        _default_loader.register(EtfRotationStrategy)
     return _default_loader

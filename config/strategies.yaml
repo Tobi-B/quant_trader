@@ -24,3 +24,14 @@ rsi_mean_reversion:
     period: 14
     oversold: 30.0
     overbought: 70.0
+
+etf_rotation:
+  params:
+    universe:
+      - SPY
+      - AGG
+      - TLT
+      - IEF
+    top_n: 2
+    lookback_months: 6
+    rebalance_freq: monthly
