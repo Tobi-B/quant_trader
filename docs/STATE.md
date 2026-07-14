@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `380d752`                                           |
+| Letzter Commit (main) | `df55734`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 185/185 gruen                                       |
+| Tests                 | 227/227 gruen                                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P2 Strategien (abgeschlossen)                       |
-| Aktiver Slice         | Phase 3 (Backtest-Engine + Reports) - DRAFT        |
-| Open Decision         | Phase-3-Slicing + erste User-Stories                |
+| Aktive Phase          | P3 Backtest-Engine + Reports (IN_PROGRESS)          |
+| Aktiver Slice         | Phase 3 / Slice 3.1 (Engine Core) - DONE           |
+| Open Decision         | Slice 3.2-3.5 Implementierung                       |
 
 ## Phasen-Tags (chronologisch)
 
@@ -29,6 +29,7 @@
 | `p2-strategies/2.3` | Mean-Reversion (RSI) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.4` | ETF-Rotation        | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.5` | Signal-Runner CLI   | 2026-07-14 | abgeschlossen |
+| `p3-backtest/3.1`   | Backtest Engine Core | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -71,13 +72,22 @@
   Strategien; `run --strategy unknown` -> Exit 1 mit Available-Liste;
   `run --strategy sma_cross --ticker ZZZZ` -> Exit 1 mit
   Cache-Hint.
+- **Slice 3.1 DONE**: BacktestEngine + Portfolio + PositionSizer +
+  FillSimulator implementiert. `BacktestConfig`/`BacktestResult`/
+  `Trade`/`EquitySnapshot` als frozen Dataclasses. Pending-Fill-Queue
+  fuer NEXT_OPEN ohne Look-Ahead. EqualWeightSizer mit 1/(n+1)
+  Verteilung. 42 neue Tests (sizer 9, portfolio 12, fill 3, engine 18).
+  227/227 gruen. ruff + mypy clean (ausser pre-existing
+  `core/logging.py` Issue, out of scope).
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase 3 Slicing + User-Stories                 | Nutzer     | Slices 3.1-3.x definieren            |
-| Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Slicing                          |
+| Phase 3 Slice 3.2 (Metrics)                    | offen      | Implementierung naechster Slice      |
+| Phase 3 Slice 3.3 (Report)                     | offen      | Nach 3.2                             |
+| Phase 3 Slice 3.4 (CLI)                        | offen      | Nach 3.3                             |
+| Phase 3 Slice 3.5 (Dashboard-Trigger)          | offen      | Nach 3.4                             |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
 | Pre-existing mypy-Errors in core/logging.py    | Optional   | 2 Lines Fix, nicht im Slice-Scope    |
@@ -113,9 +123,9 @@ tests/         185 Tests, marker slow/live/integration
 Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md, docs/architecture.md
        git log --oneline -30
        docs/adr/ (welche ADRs sind accepted/proposed?)
-       docs/userstories/p2-strategies/strategies.md
-       docs/uml/p2-strategies/rotation.md
-Frage: Slice 2.4 Stories/UML re-approven? -> Slice-PRD erstellen
+       docs/userstories/p3-backtest/backtest.md
+       docs/uml/p3-backtest/metrics.md
+Frage: Slice 3.2 (Metrics) Stories/UML re-approven? -> Slice-PRD erstellen
 ```
 
 ## Pflege

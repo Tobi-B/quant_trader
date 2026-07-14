@@ -1,9 +1,9 @@
 # UML: Slice 3.1 - Backtest Engine Core
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P3 Backtest
 Slice:     3.1 Engine Core
-Approved:  -
+Approved:  2026-07-14 (implizit via "ja starten" Instruction)
 
 Mapped Requirements:
 - NFR-Perf-1: 5 Jahre Daily < 30s
