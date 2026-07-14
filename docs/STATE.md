@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `eeb94f0` feat(p5-live): slice 5.2 live loop + journal + cli |
+| Letzter Commit (main) | `2d4e307` feat(p5-live): slice 5.3 live resilience   |
 | Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 417/417 gruen                                       |
+| Tests                 | 434/434 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P5 Live-Trading                                     |
-| Aktiver Slice         | Slice 5.2 (Live-Loop + Journal + CLI) - DONE        |
-| Open Decision         | Naechster Slice: 5.3 Auto-Reconnect                 |
+| Aktiver Slice         | Slice 5.3 (Live-Loop Resilience) - DONE             |
+| Open Decision         | Phase 7 (Docker-Deployment)                          |
 
 ## Phasen-Tags (chronologisch)
 
@@ -39,6 +39,7 @@
 | `p4-risk/4.1`        | Risk-Engine (Commission + Slippage + Stop-Loss) | 2026-07-14 | abgeschlossen |
 | `p5-live/5.1`        | Broker Interface + Mock + Order (Foundation) | 2026-07-14 | abgeschlossen |
 | `p5-live/5.2`        | Live-Loop + Trade-Journal + Live-CLI | 2026-07-14 | abgeschlossen |
+| `p5-live/5.3`        | Auto-Reconnect + Tageszusammenfassung + Credentials | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -192,6 +193,23 @@
   Connect/Disconnect, Market-Orders, Positionen und Cancellation. 23 neue Tests
   (Journal 8, Bars 5, Loop 5, CLI 5). 417/417 gruen; Ruff Check + Format und
   mypy --strict clean. ADR-0012 akzeptiert; Tag `p5-live/5.2`.
+- **Phase 5 DONE**: Slice 5.3 schliesst Phase 5 (Live-Trading) ab.
+  Auto-Reconnect (NFR-Rel-2): `LiveLoop._monitor_connection()` laeuft als
+  Background-Task, prueft alle 5s `broker.is_connected()`, und ruft
+  `_reconnect_with_backoff()` mit Exponential-Backoff (1s -> 30s cap, 10
+  Attempts). Nach erfolgreichem Reconnect werden alle subscribed Ticker via
+  `_restore_subscriptions()` re-subscribed und Positionen via
+  `broker.get_positions()` re-synced. `MockBroker.is_connected()` bleibt
+  immer True (kein Reconnect noetig fuer Tests). Tageszusammenfassung
+  (NFR-Obs-2): `DailySummary` (frozen dataclass) + `DailySummaryFormatter`
+  (fixed-width deutsche Tabelle mit Top-10-Trades) wird im `finally`-Block
+  geschrieben, persistiert in neuer `daily_summaries`-Tabelle, geloggt via
+  `live_loop.daily_summary` und auf stdout gedruckt. Credentials via TWS
+  (NFR-Sec-2): `IBKRBroker.connect()` ohne Credentials-Argumente; `Settings`
+  ohne Broker-Credentials; `.env.example` dokumentiert Policy;
+  `docs/SECURITY.md` (NEU) zentrale Credentials-Policy + Incident-Response.
+  17 neue Tests (Journal 3, Loop 9, Summary 5). 434/434 gruen; ruff + mypy
+  --strict clean. ADR-0013 akzeptiert; Tag `p5-live/5.3`.
 
 ## Was offen ist
 
@@ -199,11 +217,10 @@
 |------------------------------------------------|------------|--------------------------------------|
 | Phase 5 Slice 5.1 (Broker Interface + Mock + Order) | DONE    | Tag `p5-live/5.1`                   |
 | Phase 5 Slice 5.2 (Live Loop + Journal + CLI)       | DONE    | Tag `p5-live/5.2`                   |
-| Phase 5 Slice 5.3 (Auto-Reconnect, NFR-Rel-2)       | offen   | Reconnect-Logik                     |
-| Phase 5 Slice 5.4 (Tageszusammenfassung, NFR-Obs-2) | offen | Tagesabschluss                       |
-| Phase 5 Slice 5.5 (CLI + Credentials, NFR-Sec-2) | offen   | CLI + Credential-Persistierung       |
+| Phase 5 Slice 5.3 (Auto-Reconnect + Summary + Credentials) | DONE | Tag `p5-live/5.3`               |
+| Phase 5 als Ganzes                                | DONE    | ADR-0013 accepted                   |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | Nach Phase 5                          |
-| Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
+| Phase 7 (Docker-Deployment)                    | spaeter    | Naechster Schritt nach Phase 5       |
 
 ## Repo-Layout zum Wiederfinden
 
@@ -223,11 +240,11 @@ src/quant_trader/
 strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
 backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.6 + Risk 4.1 DONE)
 risk/          (entfaellt; Risk-Logik lebt in backtest/engine.py, ADR-0010)
-live/          Broker + Realtime-Bar-Quellen + async LiveLoop + SQLite-Journal + CLI (5.1-5.2 DONE)
+live/          Broker + Realtime-Bar-Quellen + async LiveLoop + SQLite-Journal + CLI + Auto-Reconnect + Daily-Summary (5.1-5.3 DONE)
 storage/       SQLite (Trade-Journal lebt in live/journal.py)
 config/universe_presets.yaml
 config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
-tests/         417 Tests, marker slow/live/integration
+tests/         434 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)

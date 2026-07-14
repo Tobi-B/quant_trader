@@ -1,6 +1,6 @@
 # ADR 0013: Live-Loop Robustness (Auto-Reconnect + Daily-Summary + Credentials)
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-14
 Phase:      P5 Live-Trading
 Supersedes: -

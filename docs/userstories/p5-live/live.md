@@ -2,7 +2,7 @@
 
 Phase:    P5 Live-Trading (IBKR)
 Status:   US-P5.1, US-P5.2 APPROVED (Slices 5.1, 5.2, 2026-07-14)
-          US-P5.3-US-P5.5 DRAFT (Slice 5.3, wartet auf User-Approval)
+          US-P5.3, US-P5.4, US-P5.5 APPROVED (Slice 5.3, 2026-07-14)
 Persona:  Tobias (privater Einsteiger-Trader)
 Quelle:   Interview am 2026-07-14
 
@@ -206,16 +206,16 @@ Sprache zwischen Strategie und Broker.
 
 ## Definition of Done (alle Stories)
 
-- [ ] `BrokerClient` Protocol + `MockBroker` + `IBKRBroker` (Slice 5.1)
-- [ ] `TradeJournal` (SQLite), `LiveLoop` async, `MockBarSource`,
+- [x] `BrokerClient` Protocol + `MockBroker` + `IBKRBroker` (Slice 5.1)
+- [x] `TradeJournal` (SQLite), `LiveLoop` async, `MockBarSource`,
       `IBKRBarSource`, `python -m quant_trader.live` CLI (Slice 5.2)
-- [ ] Auto-Reconnect mit Exponential-Backoff (Slice 5.3, US-P5.3)
-- [ ] Tageszusammenfassung beim Beenden: Log + stdout + `daily_summaries`
+- [x] Auto-Reconnect mit Exponential-Backoff (Slice 5.3, US-P5.3)
+- [x] Tageszusammenfassung beim Beenden: Log + stdout + `daily_summaries`
       Tabelle im Journal (Slice 5.3, US-P5.4)
-- [ ] Credentials via TWS only, KEINE in Settings, Doku aktualisiert
+- [x] Credentials via TWS only, KEINE in Settings, Doku aktualisiert
       (Slice 5.3, US-P5.5)
-- [ ] `make test`, `make lint`, `mypy --strict` gruen
-- [ ] Backward-Compat: alle 417 bestehenden Tests bleiben unveraendert gruen
-- [ ] Conventional Commits
-- [ ] `docs/STATE.md` aktualisiert, Tag `p5-live/5.3` gesetzt
-- [ ] UML-Diagramm (Structure + Flow + Sequence) APPROVED
+- [x] `make test`, `make lint`, `mypy --strict` gruen
+- [x] Backward-Compat: alle 417 bestehenden Tests bleiben unveraendert gruen
+- [x] Conventional Commits
+- [x] `docs/STATE.md` aktualisiert, Tag `p5-live/5.3` gesetzt
+- [x] UML-Diagramm (Structure + Flow + Sequence) APPROVED
