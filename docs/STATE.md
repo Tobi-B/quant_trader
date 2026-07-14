@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | (siehe `git log --oneline -1`)                     |
+| Letzter Commit (main) | `eeb94f0` feat(p5-live): slice 5.2 live loop + journal + cli |
 | Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 394/394 gruen                                       |
+| Tests                 | 417/417 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P5 Live-Trading                                     |
-| Aktiver Slice         | Slice 5.1 (Broker Interface + Mock + Order) - DONE  |
-| Open Decision         | Naechster Slice: 5.2 Live Loop                    |
+| Aktiver Slice         | Slice 5.2 (Live-Loop + Journal + CLI) - DONE        |
+| Open Decision         | Naechster Slice: 5.3 Auto-Reconnect                 |
 
 ## Phasen-Tags (chronologisch)
 
@@ -38,6 +38,7 @@
 | `p1-data/1.5`        | Financial Modelling Prep Provider als Primary | 2026-07-14 | abgeschlossen |
 | `p4-risk/4.1`        | Risk-Engine (Commission + Slippage + Stop-Loss) | 2026-07-14 | abgeschlossen |
 | `p5-live/5.1`        | Broker Interface + Mock + Order (Foundation) | 2026-07-14 | abgeschlossen |
+| `p5-live/5.2`        | Live-Loop + Trade-Journal + Live-CLI | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -181,14 +182,24 @@
   (MockBroker 12 inkl. Cancel-Pending/Filled/Unknown + State,
   Factory 4). 394/394 gruen. ruff + mypy clean. ADR-0011 Status
   `proposed` -> `accepted`.
+- **Slice 5.2 DONE**: Async `LiveLoop` verbindet Broker und Realtime-Bar-Quelle,
+  verarbeitet Single-Ticker-Strategien und persistiert gefuellte BUY-/SELL-Zyklen
+  ueber `TradeJournal` in SQLite. `client_order_id` ist UNIQUE, WAL-Modus und
+  Run-ID-Index sind aktiv. `MockBarSource._inject()` liefert deterministische
+  Queue-Bars; `IBKRBarSource` nutzt `reqRealTimeBars()`-Events. Die Live-CLI
+  `python -m quant_trader.live {run,list}` unterstuetzt Broker-Auswahl und
+  Laufzeiten in Sekunden, Minuten oder Stunden. `IBKRBroker` implementiert
+  Connect/Disconnect, Market-Orders, Positionen und Cancellation. 23 neue Tests
+  (Journal 8, Bars 5, Loop 5, CLI 5). 417/417 gruen; Ruff Check + Format und
+  mypy --strict clean. ADR-0012 akzeptiert; Tag `p5-live/5.2`.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
 | Phase 5 Slice 5.1 (Broker Interface + Mock + Order) | DONE    | Tag `p5-live/5.1`                   |
-| Phase 5 Slice 5.2 (Live Loop: Connect/Subscribe/Run) | offen | Live-Loop mit ib_insync              |
-| Phase 5 Slice 5.3 (Auto-Reconnect, NFR-Rel-2)  | offen      | Reconnect-Logik                       |
+| Phase 5 Slice 5.2 (Live Loop + Journal + CLI)       | DONE    | Tag `p5-live/5.2`                   |
+| Phase 5 Slice 5.3 (Auto-Reconnect, NFR-Rel-2)       | offen   | Reconnect-Logik                     |
 | Phase 5 Slice 5.4 (Tageszusammenfassung, NFR-Obs-2) | offen | Tagesabschluss                       |
 | Phase 5 Slice 5.5 (CLI + Credentials, NFR-Sec-2) | offen   | CLI + Credential-Persistierung       |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | Nach Phase 5                          |
@@ -212,11 +223,11 @@ src/quant_trader/
 strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
 backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.6 + Risk 4.1 DONE)
 risk/          (entfaellt; Risk-Logik lebt in backtest/engine.py, ADR-0010)
-live/          BrokerClient Protocol + MockBroker + IBKRBroker Stub + Order/Position Types + Factory (5.1 DONE)
-storage/       SQLite (P5 kommt)
+live/          Broker + Realtime-Bar-Quellen + async LiveLoop + SQLite-Journal + CLI (5.1-5.2 DONE)
+storage/       SQLite (Trade-Journal lebt in live/journal.py)
 config/universe_presets.yaml
 config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
-tests/         394 Tests, marker slow/live/integration
+tests/         417 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)
