@@ -52,7 +52,12 @@ class BacktestEngine:
         self._strategy = strategy
         self._config = config
         self._sizer = cast(PositionSizer, sizer)
-        self._fill_simulator = FillSimulator(config.fill_mode)
+        self._commission_per_trade = config.commission_per_trade
+        self._commission_per_share = config.commission_per_share
+        self._stop_loss_pct = config.stop_loss_pct
+        self._fill_simulator = FillSimulator(config.fill_mode, slippage_pct=config.slippage_pct)
+        self._total_commission = 0.0
+        self._stop_loss_count = 0
 
     def run(self, bars_by_ticker: dict[str, list[Bar]]) -> BacktestResult:
         if not bars_by_ticker:
@@ -61,6 +66,8 @@ class BacktestEngine:
             if not bars:
                 raise BacktestConfigError(f"bars fuer {ticker} sind leer")
 
+        self._total_commission = 0.0
+        self._stop_loss_count = 0
         start_time = time.perf_counter()
         if isinstance(self._strategy, MultiTickerStrategyBase):
             result = self._run_multi(bars_by_ticker)
@@ -76,6 +83,8 @@ class BacktestEngine:
             bars=len(result.equity_curve),
             trades=len(result.trades),
             final_equity=round(result.final_equity, 2),
+            total_commission=round(self._total_commission, 4),
+            stop_loss_count=self._stop_loss_count,
         )
         return result
 
@@ -103,6 +112,14 @@ class BacktestEngine:
         equity_curve: list[EquitySnapshot] = []
 
         for i, bar in enumerate(bars):
+            self._check_stop_losses(
+                ticker=ticker,
+                ticker_bars=bars,
+                current_index=i,
+                bar=bar,
+                open_positions=open_positions,
+                pending=pending,
+            )
             signals = strategy.on_bar(bar, _portfolio_state(portfolio))
             for sig in signals:
                 self._schedule(sig, ticker, bars, i, pending)
@@ -154,6 +171,22 @@ class BacktestEngine:
         for ts_date in sorted(bars_by_date.keys()):
             bars_at_date = bars_by_date[ts_date]
             ts_dt = next(iter(bars_at_date.values())).timestamp
+            for tkr in sorted(bars_at_date.keys()):
+                ticker_bars = sorted_by_ticker.get(tkr, [])
+                bar_at_date = bars_at_date.get(tkr)
+                if not ticker_bars or bar_at_date is None:
+                    continue
+                idx = _index_of_bar(ticker_bars, bar_at_date)
+                if idx < 0:
+                    continue
+                self._check_stop_losses(
+                    ticker=tkr,
+                    ticker_bars=ticker_bars,
+                    current_index=idx,
+                    bar=bar_at_date,
+                    open_positions=open_positions,
+                    pending=pending,
+                )
             signals = strategy.on_universe_bars(
                 ts_dt, dict(bars_at_date), _portfolio_state(portfolio)
             )
@@ -208,6 +241,45 @@ class BacktestEngine:
                 reason=str(exc),
                 signal_action=str(signal.action.value),
             )
+
+    def _check_stop_losses(
+        self,
+        *,
+        ticker: str,
+        ticker_bars: list[Bar],
+        current_index: int,
+        bar: Bar,
+        open_positions: dict[str, _OpenPosition],
+        pending: list[PendingFill],
+    ) -> None:
+        if self._stop_loss_pct is None:
+            return
+        pos = open_positions.get(ticker)
+        if pos is None or pos.qty <= 0:
+            return
+        threshold = pos.entry_price * (1.0 - self._stop_loss_pct / 100.0)
+        if float(bar.open) >= threshold:
+            return
+        stop_loss_signal = Signal(
+            timestamp=bar.timestamp,
+            ticker=ticker,
+            action=Action.SELL,
+            reason="stop_loss",
+        )
+        self._schedule(stop_loss_signal, ticker, ticker_bars, current_index, pending)
+        self._stop_loss_count += 1
+        log.warning(
+            "backtest.stop_loss",
+            ticker=ticker,
+            entry_price=pos.entry_price,
+            trigger_price=float(bar.open),
+            stop_loss_pct=self._stop_loss_pct,
+        )
+
+    def _commission_for(self, qty: int) -> float:
+        if qty <= 0:
+            return 0.0
+        return max(self._commission_per_trade, qty * self._commission_per_share)
 
     def _process_pending(
         self,
@@ -264,7 +336,9 @@ class BacktestEngine:
                     cash=round(portfolio.cash, 2),
                 )
                 return portfolio, open_positions, trades
-            new_portfolio = portfolio.with_cash(-sizing.allocated_cash).with_position(
+            commission = self._commission_for(sizing.qty)
+            self._total_commission += commission
+            new_portfolio = portfolio.with_cash(-sizing.allocated_cash - commission).with_position(
                 ticker, sizing.qty
             )
             new_open_positions = dict(open_positions)
@@ -272,6 +346,7 @@ class BacktestEngine:
                 entry_date=fill.timestamp.date(),
                 entry_price=fill.price,
                 qty=sizing.qty,
+                entry_commission=commission,
             )
             log.info(
                 "backtest.buy_filled",
@@ -279,6 +354,7 @@ class BacktestEngine:
                 qty=sizing.qty,
                 price=fill.price,
                 allocated=round(sizing.allocated_cash, 2),
+                fee=round(commission, 4),
                 cash_after=round(new_portfolio.cash, 2),
             )
             return new_portfolio, new_open_positions, trades
@@ -290,11 +366,16 @@ class BacktestEngine:
             entry = open_positions.get(ticker)
             entry_date = entry.entry_date if entry is not None else fill.timestamp.date()
             entry_price = entry.entry_price if entry is not None else fill.price
+            entry_commission = entry.entry_commission if entry is not None else 0.0
             proceeds = qty * fill.price
-            new_portfolio = portfolio.with_cash(proceeds).with_position(ticker, -qty)
+            exit_commission = self._commission_for(qty)
+            self._total_commission += exit_commission
+            new_portfolio = portfolio.with_cash(proceeds - exit_commission).with_position(
+                ticker, -qty
+            )
             new_open_positions = dict(open_positions)
             new_open_positions.pop(ticker, None)
-            pnl = proceeds - qty * entry_price
+            pnl = proceeds - entry_commission - exit_commission - qty * entry_price
             pnl_pct = (pnl / (qty * entry_price)) if entry_price > 0 else 0.0
             new_trade = Trade(
                 ticker=ticker,
@@ -312,6 +393,7 @@ class BacktestEngine:
                 qty=qty,
                 price=fill.price,
                 proceeds=round(proceeds, 2),
+                fee=round(exit_commission, 4),
                 pnl=round(pnl, 2),
             )
             return new_portfolio, new_open_positions, new_trades
@@ -320,12 +402,19 @@ class BacktestEngine:
 
 
 class _OpenPosition:
-    __slots__ = ("entry_date", "entry_price", "qty")
+    __slots__ = ("entry_commission", "entry_date", "entry_price", "qty")
 
-    def __init__(self, entry_date: date_cls, entry_price: float, qty: int) -> None:
+    def __init__(
+        self,
+        entry_date: date_cls,
+        entry_price: float,
+        qty: int,
+        entry_commission: float = 0.0,
+    ) -> None:
         self.entry_date = entry_date
         self.entry_price = entry_price
         self.qty = qty
+        self.entry_commission = entry_commission
 
 
 def _portfolio_state(portfolio: Portfolio) -> PortfolioState:

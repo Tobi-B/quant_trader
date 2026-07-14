@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `c24a863`                                            |
+| Letzter Commit (main) | (siehe `git log --oneline -1`)                     |
 | Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 355/355 gruen                                       |
+| Tests                 | 378/378 gruen                                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P1 Datenlayer                                       |
-| Aktiver Slice         | Phase 1 / Slice 1.5 (FMP Provider) - DONE          |
-| Open Decision         | Naechste Phase nach P1 Datenlayer                   |
+| Aktive Phase          | P4 Risk Management                                  |
+| Aktiver Slice         | Slice 4.1 (Risk-Engine) - DONE                     |
+| Open Decision         | Naechste Phase nach P4                            |
 
 ## Phasen-Tags (chronologisch)
 
@@ -36,6 +36,7 @@
 | `p3-backtest/3.5`   | Dashboard Run-Trigger | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.6`   | Strategie-Vergleichsansicht | 2026-07-14 | abgeschlossen |
 | `p1-data/1.5`        | Financial Modelling Prep Provider als Primary | 2026-07-14 | abgeschlossen |
+| `p4-risk/4.1`        | Risk-Engine (Commission + Slippage + Stop-Loss) | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -143,16 +144,33 @@
   via `backtest.comparison.render`. 8 neue Tests, 340/340 gruen. Ruff Check +
   Format gruen; mypy nur mit den zwei bekannten `core/logging.py`-Fehlern.
   Dashboard-Modul-Smoke OK.
+- **Slice 4.1 DONE**: Risk-Engine (Commission + Slippage + Stop-Loss)
+  implementiert. `BacktestConfig` um `commission_per_trade`,
+  `commission_per_share`, `slippage_pct`, `stop_loss_pct` erweitert
+  (Defaults 0.0 / None fuer Backward-Compat). `FillSimulator.resolve`
+  applied Slippage symmetrisch auf BUY (+pct) und SELL (-pct) an den
+  Fill-Preis. `BacktestEngine._apply_fill` berechnet
+  `commission = max(per_trade, qty * per_share)` und bucht es auf
+  Cash; `Trade.pnl` beruecksichtigt Entry- und Exit-Commission
+  automatisch. `_check_stop_losses` laeuft pro Bar **vor**
+  `strategy.on_bar` (auch in Multi-Ticker-Modus, alphabetisch
+  sortiert) und enqueu einen internen `Signal(action=SELL,
+  reason="stop_loss")` ueber die normale Fill-Pipeline. Strukturiertes
+  Logging `backtest.stop_loss` (WARNING, mit `ticker`/`entry_price`/
+  `trigger_price`/`stop_loss_pct`) und `backtest.complete` jetzt mit
+  `total_commission` und `stop_loss_count`. 23 neue Tests
+  (Commission-Berechnung 5, Commission-Buchung 4, Slippage 5,
+  Stop-Loss 5, Integration 4). 378/378 gruen. ruff + mypy clean
+  (inkl. `core/logging.py`). ADR-0010 Status `proposed` -> `accepted`.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase 3 Slice 3.5 (Dashboard-Trigger)          | DONE       | Tag `p3-backtest/3.5`               |
-| Phase 3 Slice 3.6 (Vergleichsansicht)          | DONE       | Tag `p3-backtest/3.6`               |
-| Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
+| Phase 4 Slice 4.1 (Risk-Engine)                | DONE       | Tag `p4-risk/4.1`                   |
+| Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Naechste Phase nach P4                |
+| Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | Nach Phase 5                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
-| Pre-existing mypy-Errors in core/logging.py    | Optional   | 2 Lines Fix, nicht im Slice-Scope    |
 
 ## Repo-Layout zum Wiederfinden
 
@@ -170,13 +188,13 @@ src/quant_trader/
   universe/    loader (CLI fertig)
   data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI
 strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
-backtest/      (P3 kommt)
-risk/          (P4 kommt)
+backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.6 + Risk 4.1 DONE)
+risk/          (entfaellt; Risk-Logik lebt in backtest/engine.py, ADR-0010)
 live/          (P5 kommt)
 storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
 config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
-tests/         355 Tests, marker slow/live/integration
+tests/         378 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)

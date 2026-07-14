@@ -57,6 +57,10 @@ class BacktestConfig:
     sizer: object
     start: date | None = None
     end: date | None = None
+    commission_per_trade: float = 0.0
+    commission_per_share: float = 0.0
+    slippage_pct: float = 0.0
+    stop_loss_pct: float | None = None
 
 
 @dataclass(frozen=True)

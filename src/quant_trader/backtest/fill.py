@@ -14,10 +14,15 @@ class FillSimulator:
     - `SAME_CLOSE`: the fill is executed on the *signal* bar at its `close`
       price (no look-ahead; the strategy saw the close before emitting the
       signal, so we can fill at the same close).
+    - `slippage_pct`: applied to the reference price at `resolve()` time.
+      BUY: `price = raw * (1 + slippage_pct / 100)`,
+      SELL: `price = raw * (1 - slippage_pct / 100)`. Default `0.0`
+      preserves the original (unslipped) price.
     """
 
-    def __init__(self, mode: FillMode) -> None:
+    def __init__(self, mode: FillMode, slippage_pct: float = 0.0) -> None:
         self._mode = mode
+        self._slippage_pct = slippage_pct
 
     def schedule(self, signal: Signal, bars: list[Bar], current_index: int) -> PendingFill:
         if self._mode is FillMode.SAME_CLOSE:
@@ -30,15 +35,20 @@ class FillSimulator:
         return PendingFill(signal=signal, execute_on=execute_bar)
 
     def resolve(self, pending: PendingFill) -> Fill:
-        price = (
+        raw_price = (
             pending.execute_on.open
             if self._mode is FillMode.NEXT_OPEN
             else pending.execute_on.close
         )
+        action = pending.signal.action
+        if action.value == "BUY":
+            price = float(raw_price) * (1.0 + self._slippage_pct / 100.0)
+        else:
+            price = float(raw_price) * (1.0 - self._slippage_pct / 100.0)
         return Fill(
             ticker=pending.signal.ticker,
             timestamp=pending.execute_on.timestamp,
-            price=float(price),
+            price=price,
             qty=0,
-            action=str(pending.signal.action.value),
+            action=str(action.value),
         )

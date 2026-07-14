@@ -1,6 +1,6 @@
 # ADR 0010: Risk-Engine-Architektur (Commission, Slippage, Stop-Loss)
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-14
 Phase:      P4 Risk Management
 Supersedes: -
