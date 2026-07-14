@@ -1,18 +1,20 @@
 # Phase 3 - Backtest: User Stories
 
 Phase:    P3 Backtest-Engine + Reports
-Status:   APPROVED  (2026-07-14, US-P3.1 bis US-P3.8 fuer Slices 3.1-3.4 freigegeben)
+Status:   US-P3.1 bis US-P3.8 APPROVED (Slices 3.1-3.4, 2026-07-14)
+          US-P3.9 DRAFT (Slice 3.5, wartet auf User-Approval)
 Persona:  Tobias (privater Einsteiger-Trader)
 Quelle:   Interview am 2026-07-14
 
 Konvention: jede Story folgt INVEST + MoSCoW + T-Shirt-Size + Gherkin.
 Nutzer-zentriert: das "Was & Warum", nicht das "Wie".
 
-Slicing (4 Slices, genehmigt 2026-07-14):
+Slicing (5 Slices, genehmigt 2026-07-14):
 - **Slice 3.1** Backtest Engine Core
 - **Slice 3.2** Metrics
-- **Slice 3.3** Report (Console + Plotly HTML + JSON + Streamlit)
+- **Slice 3.3** Report (Console + Plotly HTML + JSON + Streamlit, read-only)
 - **Slice 3.4** Backtest CLI
+- **Slice 3.5** Interaktives Backtest-Dashboard (Run-Trigger im Streamlit-UI)
 
 Globale Defaults (aus Interview, 2026-07-14):
 - Initial Cash: 100.000 USD (per CLI ueberschreibbar)
@@ -191,6 +193,35 @@ Globale Defaults (aus Interview, 2026-07-14):
 
 ---
 
+## Slice 3.5 - Interaktives Backtest-Dashboard (Run-Trigger)
+
+Erweitert das in US-P3.7 definierte Streamlit-Dashboard (zunaechst read-only)
+um einen Backtest-Trigger. Fill-Mode, Initial-Cash und Granularity bleiben
+bewusst ausserhalb des UI (CLI-/YAML-Defaults), damit der Scope klein bleibt.
+
+### US-P3.9 - Backtest aus dem Dashboard starten
+
+- **Als** Trader
+- **moechte ich** im Dashboard Strategie, Ticker/Universe und Zeitraum auswaehlen
+  und den Backtest per Knopfdruck starten und das Ergebnis direkt darunter sehen,
+- **damit** ich Backtests ohne CLI-Aufruf durchfuehren und sofort visuell bewerten kann.
+
+- **Priority:** Should
+- **Estimate:** M
+- **Acceptance Criteria (Gherkin):**
+  - **Given** das Streamlit-Extra ist installiert (`uv sync --extra ui`) und ich habe das Dashboard geoeffnet
+  - **When** ich in der Sidebar eine registrierte Strategie (Dropdown aus der Registry), einen Ticker (Freitext) oder ein Universe-Preset (Dropdown aus `config/universe_presets.yaml`), Start- und Enddatum (Date-Input) waehle und auf "Backtest starten" klicke
+  - **Then** startet die BacktestEngine aus Slice 3.1 mit diesen Parametern (Fill-Mode = `next_open`, Initial-Cash = 100.000 USD, Granularity = `daily` als Default; keine UI-Felder dafuer)
+  - **And** waehrend des Laufs sehe ich einen Progress-Spinner mit Live-Log-Stream (structlog)
+  - **And** nach Abschluss erscheinen Metriken-Tabelle, Equity-Curve (Plotly) und Top-Trades-Tabelle direkt unter dem Formular im selben Tab
+  - **And** der Run wird persistent unter `reports/<run-id>/` abgelegt (result.json + equity_curve.html + console-Log) und ist danach im Read-Mode (US-P3.7) aufrufbar
+  - **And** bei Fehlern (Cache fehlt, ungueltiges Datum, unbekannter Ticker, leere Strategie-Liste): klare deutsche Fehlermeldung in der UI, kein Streamlit-Crash
+  - **And** die UI blockiert waehrend des Runs (kein Doppel-Klick auf "Start" moeglich, Button disabled)
+
+- **Out of Scope:** UI-Felder fuer Fill-Mode, Initial-Cash, Granularity (CLI/YAML-Defaults); Non-Blocking / Background-Jobs; Cancel-Button; Parameter-Presets / Sweeps; Live-Trading-Trigger (Phase 5); Multi-Backtest-Batch in einem Run.
+
+---
+
 ## Mapped NFRs (siehe docs/requirements/nfrs.md)
 
 | Story   | NFR-IDs                                                |
@@ -203,6 +234,7 @@ Globale Defaults (aus Interview, 2026-07-14):
 | US-P3.6 | NFR-Data-2                                              |
 | US-P3.7 | NFR-Ux-1                                               |
 | US-P3.8 | NFR-Ux-1, NFR-Obs-1                                   |
+| US-P3.9 | NFR-Ux-1, NFR-Obs-1, NFR-Perf-1, NFR-Data-1           |
 
 ---
 
@@ -212,7 +244,8 @@ Globale Defaults (aus Interview, 2026-07-14):
 - [ ] Metrics: Sharpe, CAGR, MDD, Win-Rate, Exposure (3.2)
 - [ ] Report: ConsoleFormatter, PlotlyExporter, JSONExporter, Streamlit-Dashboard (3.3)
 - [ ] CLI `python -m quant_trader.backtest {run,list}` (3.4)
-- [ ] Tests fuer Engine-Korrektheit, deterministische Metriken, Report-Roundtrip
+- [ ] Dashboard: Run-Trigger mit Engine-Wiring, Progress, Fehler-Handling (3.5)
+- [ ] Tests fuer Engine-Korrektheit, deterministische Metriken, Report-Roundtrip, Dashboard-Trigger (3.5)
 - [ ] `make test`, `make lint`, `make smoke` gruen
 - [ ] Conventional Commits, einer pro Slice
 - [ ] `docs/STATE.md` aktualisiert, Tag `p3-backtest` gesetzt
