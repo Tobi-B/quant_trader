@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `bf8058b`                                            |
+| Letzter Commit (main) | `c24a863`                                            |
 | Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 340/340 gruen                                       |
+| Tests                 | 355/355 gruen                                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P3 Backtest-Engine + Reports (DONE)                 |
-| Aktiver Slice         | Phase 3 / Slice 3.6 (Vergleichsansicht) - DONE      |
-| Open Decision         | Naechste Phase nach P3                              |
+| Aktive Phase          | P1 Datenlayer                                       |
+| Aktiver Slice         | Phase 1 / Slice 1.5 (FMP Provider) - DONE          |
+| Open Decision         | Naechste Phase nach P1 Datenlayer                   |
 
 ## Phasen-Tags (chronologisch)
 
@@ -35,20 +35,22 @@
 | `p3-backtest/3.4`   | Backtest CLI | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.5`   | Dashboard Run-Trigger | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.6`   | Strategie-Vergleichsansicht | 2026-07-14 | abgeschlossen |
+| `p1-data/1.5`        | Financial Modelling Prep Provider als Primary | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
 - **CLI** `python -m quant_trader.universe {load,list}` und
   `python -m quant_trader.data TICKER [--universe ...] [--granularity daily|60m|15m]`
-- **Provider-Chain**: AlphaVantage (Premium-only) -> YFinance -> StockData.org
+- **Provider-Chain**: Financial Modelling Prep (FMP) -> YFinance -> StockData.org -> AlphaVantage
+- **FMP Provider (Slice 1.5 DONE)**: Daily, 60m und 15m ueber die FMP-API; Rate-Limits und Provider-Fehler fallen transparent auf die bestehende Kette zurueck.
 - **Cache**: Parquet unter `data/raw/{daily,60m,15m}/<TICKER>.parquet`, idempotent
 - **Universe YAML**: `config/universe_presets.yaml` (sp500/dax40/etfs)
-- **.env (gitignored)**: AV-Key hinterlegt (Premium-Endpoint, daher Fallback-Kette aktiv)
+- **.env (gitignored)**: API-Keys bleiben ausserhalb des Repos; der FMP-Key wird ueber `FINANCIAL_MODELLING_PREP_KEY` gelesen.
 - **CLI-Smoke** 6 Schritte demonstriert in `Sprint-Demo` oben.
 - **P2 Doku APPROVED** (22e6300): US-P2.1+US-P2.2 freigegeben, framework.md
   + runner.md UMLs APPROVED, Slice 2.1 PRD erstellt.
 - **Architecture-Doku** (53ab219): `docs/architecture.md` mit Layered-Overview,
-  Module-Tabelle, Datenfluss. `docs/adr/` mit 8 ADRs (0001-0008).
+  Module-Tabelle, Datenfluss. `docs/adr/` mit 9 ADRs (0001-0009).
 - **Slice 2.1 DONE** (0639c7e): Strategy Framework implementiert. 36 neue Tests
   (test_types, test_base, test_loader). 120/120 gruen. Lint + Format gruen.
   Registry-Pattern + ABC-Design via ADR 0007/0008 dokumentiert.
@@ -159,14 +161,14 @@ docs/STATE.md                       <- diese Datei
 docs/00_dev_workflow.md             <- Loop-Regeln (DE)
 docs/architecture.md                <- Layered-Overview, Module-Tabelle, Datenfluss
 docs/requirements/nfrs.md           <- 13 NFRs mit IDs
-docs/adr/                           <- 8 Architecture Decision Records (0001-0008)
+docs/adr/                           <- 9 Architecture Decision Records (0001-0009)
 docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1 ausgearbeitet)
 docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1+P2)
 docs/uml/<phase>/<slice>.md         <- Mermaid (3 Typen, + State Machine bei Bedarf)
 src/quant_trader/
   core/        types, errors, config, logging
   universe/    loader (CLI fertig)
-  data/        3 Provider + FallbackDecorator + Factory + Cache + Service + CLI
+  data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI
 strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
 backtest/      (P3 kommt)
 risk/          (P4 kommt)
@@ -174,7 +176,7 @@ live/          (P5 kommt)
 storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
 config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
-tests/         185 Tests, marker slow/live/integration
+tests/         355 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)

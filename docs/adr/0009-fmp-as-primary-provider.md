@@ -1,11 +1,11 @@
 # ADR 0009: Financial Modelling Prep (FMP) als Primary Provider
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-14
 Phase:      P1 Datenlayer
-Supersedes: -
+Supersedes: ADR-0001
 Superseded by: -
-Supersedes-Status: ADR-0001 (Provider-Chain-Reihenfolge) ist abzuwaehlen, sobald dieser ADR accepted ist.
+Supersedes-Status: ADR-0001 (Provider-Chain-Reihenfolge) ist mit diesem Slice superseded.
 
 ## Context
 
@@ -105,6 +105,6 @@ gibt.
 - `docs/prd/p1-data/fmp-provider.md` (Slice-PRD)
 - `docs/uml/p1-data/fmp-provider.md` (Mermaid Structure/Flow/Sequence)
 - FMP API Docs: https://financialmodelingprep.com/developer/docs/
-- NFR-Data-3 (DRAFT)
+- NFR-Data-3 (APPROVED)
 - ADR-0001 (superseded)
 - ADR-0002 (Fallback-Decorator-Pattern, bleibt aktiv)

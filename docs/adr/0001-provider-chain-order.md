@@ -1,10 +1,10 @@
 # ADR 0001: Provider-Chain-Reihenfolge AlphaVantage → YFinance → StockData
 
-Status:     accepted
+Status:     superseded by ADR-0009
 Datum:      2026-07-10
 Phase:      P1 (rueckwirkend dokumentiert)
 Supersedes: -
-Superseded by: -
+Superseded by: 0009-fmp-as-primary-provider.md
 
 ## Context
 
