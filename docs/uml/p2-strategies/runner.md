@@ -1,9 +1,9 @@
 # UML: Slice 2.5 - Signal-Runner CLI
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P2 Strategien
 Slice:     2.5 Signal-Runner
-Approved:  -
+Approved:  2026-07-14
 
 Mapped Requirements:
 - NFR-Obs-1: Strukturierte Logs
