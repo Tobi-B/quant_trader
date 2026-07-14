@@ -1,7 +1,8 @@
 # Phase 5 - Live-Trading: User Stories
 
 Phase:    P5 Live-Trading (IBKR)
-Status:   US-P5.1 DRAFT (Slice 5.1, wartet auf User-Approval)
+Status:   US-P5.1 APPROVED (Slice 5.1, 2026-07-14, on "ja starten" Instruction)
+          US-P5.2 DRAFT (Slice 5.2, wartet auf User-Approval)
 Persona:  Tobias (privater Einsteiger-Trader)
 Quelle:   Interview am 2026-07-14
 
@@ -64,6 +65,46 @@ Sprache zwischen Strategie und Broker.
   Auto-Reconnect (Slice 5.3), Tageszusammenfassung (Slice 5.4),
   Broker-Credentials-Persistierung (Slice 5.5).
 
+### US-P5.2 - Live-Loop: Strategie empfängt Realtime-Bars und sendet Orders
+
+- **Als** Trader
+- **moechte ich**, dass eine Strategie auf echte Realtime-Bars vom
+  Broker hoert und Signale direkt als Market-Order an den Broker
+  sendet, waehrend alle Trades persistent in einem SQLite-Journal
+  gespeichert werden,
+- **damit** ich Live-Trading ohne manuellen Eingriff betreiben und
+  alle Trades nachvollziehbar auditieren kann.
+
+- **Priority:** Must
+- **Estimate:** L
+- **Acceptance Criteria (Gherkin):**
+  - **Given** eine registrierte Strategie, ein `BrokerClient` (IBKR via
+    `ib_insync` im Live-Modus oder MockBroker im Test-Modus) und ein
+    `TradeJournal` (SQLite, Pfad aus Settings.db_path)
+  - **When** ich `python -m quant_trader.live run --strategy sma_cross
+    --ticker SPY --broker ibkr --duration 1h` aufrufe
+  - **Then** verbindet sich der Live-Loop mit dem Broker (Mock: sofort
+    ready; IBKR: `ib.connect()` zu TWS)
+  - **And** abonniert Realtime-Bars fuer die angegebenen Ticker
+    (IBKR: `ib.reqRealTimeBars()`; Mock: synthetische Bars aus
+    deterministischem Generator)
+  - **And** bei jedem neuen Bar: `strategy.on_bar(bar, portfolio)` ->
+    Signale -> `broker.place_order()` -> bei FILLED: `TradeJournal.append()`
+  - **And** jeder Trade (Entry + Exit) landet persistent in
+    `quant_trader.sqlite` mit Feldern: `id, run_id, strategy_name, ticker,
+    action, qty, entry_price, exit_price, pnl, pnl_pct, opened_at, closed_at`
+  - **And** `run_id` ist UUID, pro Loop-Run eineindeutig
+  - **And** nach `duration` (oder Ctrl-C) wird der Loop sauber beendet:
+    Broker disconnect, Journal geschlossen, Summary-Log
+  - **And** bei Fehler (Broker disconnect, TWS nicht erreichbar): klarer
+    Log + Exit 1 (Auto-Reconnect kommt in Slice 5.3)
+
+- **Out of Scope:** Auto-Reconnect (Slice 5.3), Tageszusammenfassung
+  (Slice 5.4), Credentials-Persistierung (Slice 5.5),
+  Multi-Strategy parallel, Multi-Ticker Universe (kommt spaeter),
+  Real-time-Equity-Update, WebSocket-Dashboard, Backtest-Engine-Bridge
+  (BacktestEngine bleibt eigenstaendig fuer Phase 3).
+
 ---
 
 ## Mapped NFRs (siehe docs/requirements/nfrs.md)
@@ -71,6 +112,7 @@ Sprache zwischen Strategie und Broker.
 | Story   | NFR-IDs                                            |
 |---------|----------------------------------------------------|
 | US-P5.1 | NFR-Sec-2 (Credentials via TWS only), NFR-Obs-1    |
+| US-P5.2 | NFR-Obs-1, NFR-Rel-1 (idempotente Trades via Journal UNIQUE-Constraint) |
 
 ---
 
