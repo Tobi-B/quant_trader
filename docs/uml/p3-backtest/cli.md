@@ -1,9 +1,9 @@
 # UML: Slice 3.4 - Backtest CLI
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P3 Backtest
 Slice:     3.4 CLI
-Approved:  -
+Approved:  2026-07-14
 
 Mapped Requirements:
 - NFR-Ux-1: CLI-Texte deutsch

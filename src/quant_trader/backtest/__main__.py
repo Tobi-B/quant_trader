@@ -1,4 +1,4 @@
-"""Backtest entry point: delegates to `python -m quant_trader.backtest`."""
+"""Entry point for `python -m quant_trader.backtest`."""
 
 from __future__ import annotations
 

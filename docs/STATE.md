@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `116f6a8`                                           |
+| Letzter Commit (main) | `<pending>`                                         |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 294/294 gruen                                       |
+| Tests                 | 319/319 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P3 Backtest-Engine + Reports (IN_PROGRESS)          |
-| Aktiver Slice         | Phase 3 / Slice 3.3 (Report) - DONE                 |
-| Open Decision         | Slice 3.4-3.5 Implementierung                       |
+| Aktiver Slice         | Phase 3 / Slice 3.4 (CLI) - DONE                    |
+| Open Decision         | Slice 3.5 Implementierung                           |
 
 ## Phasen-Tags (chronologisch)
 
@@ -32,6 +32,7 @@
 | `p3-backtest/3.1`   | Backtest Engine Core | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.2`   | Metrics             | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.3`   | Report (Console + Plotly + JSON + Streamlit) | 2026-07-14 | abgeschlossen |
+| `p3-backtest/3.4`   | Backtest CLI | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -96,12 +97,25 @@
   Trade-Tabelle). 33 neue Tests (console 10, plotly 4, json 7, loader
   7, builder 5). 294/294 gruen. ruff + mypy clean. Dashboard-Script
   manuell smoke-getestet (Modul-Load OK).
+- **Slice 3.4 DONE**: Backtest CLI (`python -m quant_trader.backtest {run,list}`)
+  + `BacktestOrchestrator` (DI-Pattern: cache, loader, report_builder,
+  reports_dir). `__main__.py` Entry-Point, `scripts/run_backtest.py`
+  delegiert. Error-Hierarchie erweitert (UnknownStrategyError mit
+  `name`+`available`, CacheMissingError mit `ticker`+`path`,
+  InvalidParamsError). CLI strukturiert mit Subcommands, deutsche
+  Fehlermeldungen auf stderr, Exit 0/1/2. 25 neue Tests (Parser 8,
+  CLI-Run 9, CLI-List 2, Orchestrator-Direct 5, plus negative-path
+  Multi-Ticker ohne universe, invalid date, unknown strategy, missing
+  cache, single-ticker ohne ticker). 319/319 gruen. ruff + mypy clean
+  (ausser pre-existing core/logging.py). Smoke: `--help`, `run --help`,
+  `list --help`, `list --reports-dir`, unknown-strategy mit
+  Available-Liste OK.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase 3 Slice 3.4 (CLI)                        | offen      | Implementierung naechster Slice      |
+| Phase 3 Slice 3.4 (CLI)                        | DONE       | Tag `p3-backtest/3.4`               |
 | Phase 3 Slice 3.5 (Dashboard-Trigger)          | offen      | Nach 3.4                             |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |

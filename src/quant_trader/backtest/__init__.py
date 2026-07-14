@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from quant_trader.backtest.engine import BacktestEngine
-from quant_trader.backtest.errors import BacktestConfigError, BacktestError
+from quant_trader.backtest.errors import (
+    BacktestConfigError,
+    BacktestError,
+    CacheMissingError,
+    InvalidParamsError,
+    UnknownStrategyError,
+)
 from quant_trader.backtest.fill import FillSimulator
 from quant_trader.backtest.metrics import (
     EquityCurveStats,
@@ -11,6 +17,7 @@ from quant_trader.backtest.metrics import (
     MetricsCalculator,
     TradeStats,
 )
+from quant_trader.backtest.orchestrator import BacktestOrchestrator
 from quant_trader.backtest.portfolio import Portfolio
 from quant_trader.backtest.report import (
     BacktestReport,
@@ -38,8 +45,10 @@ __all__ = [
     "BacktestConfigError",
     "BacktestEngine",
     "BacktestError",
+    "BacktestOrchestrator",
     "BacktestReport",
     "BacktestResult",
+    "CacheMissingError",
     "ConsoleFormatter",
     "EqualWeightSizer",
     "EquityCurveStats",
@@ -47,6 +56,7 @@ __all__ = [
     "Fill",
     "FillMode",
     "FillSimulator",
+    "InvalidParamsError",
     "JsonExporter",
     "Metrics",
     "MetricsCalculator",
@@ -61,4 +71,5 @@ __all__ = [
     "SizingResult",
     "Trade",
     "TradeStats",
+    "UnknownStrategyError",
 ]
