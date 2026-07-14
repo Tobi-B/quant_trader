@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from quant_trader.backtest.dashboard_runner import DashboardRunner
 from quant_trader.backtest.engine import BacktestEngine
 from quant_trader.backtest.errors import (
     BacktestConfigError,
@@ -50,6 +51,7 @@ __all__ = [
     "BacktestResult",
     "CacheMissingError",
     "ConsoleFormatter",
+    "DashboardRunner",
     "EqualWeightSizer",
     "EquityCurveStats",
     "EquitySnapshot",

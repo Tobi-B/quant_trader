@@ -10,11 +10,11 @@
 | Datum                 | 2026-07-14                                          |
 | Letzter Commit (main) | `<pending>`                                         |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 319/319 gruen                                       |
+| Tests                 | 332/332 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P3 Backtest-Engine + Reports (IN_PROGRESS)          |
-| Aktiver Slice         | Phase 3 / Slice 3.4 (CLI) - DONE                    |
-| Open Decision         | Slice 3.5 Implementierung                           |
+| Aktiver Slice         | Phase 3 / Slice 3.5 (Dashboard-Trigger) - DONE      |
+| Open Decision         | Slice 3.6 Implementierung (Vergleichsansicht)       |
 
 ## Phasen-Tags (chronologisch)
 
@@ -33,6 +33,7 @@
 | `p3-backtest/3.2`   | Metrics             | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.3`   | Report (Console + Plotly + JSON + Streamlit) | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.4`   | Backtest CLI | 2026-07-14 | abgeschlossen |
+| `p3-backtest/3.5`   | Dashboard Run-Trigger | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -110,13 +111,32 @@
   (ausser pre-existing core/logging.py). Smoke: `--help`, `run --help`,
   `list --help`, `list --reports-dir`, unknown-strategy mit
   Available-Liste OK.
+- **Slice 3.5 DONE**: Dashboard Run-Trigger (`DashboardRunner` +
+  Streamlit-Tabs "Run-Form"/"Read-Mode"). `DashboardRunner` ist pure
+  Library-Code (kein Streamlit-Import) mit DI auf Orchestrator + Loader
+  + Presets; `run_request(strategy, ticker, universe, start, end) ->
+  (run_id, BacktestResult)` validiert Strategie, resolvet Universe-Preset
+  (uppercase Ticker), generiert `run_id` via `datetime.now().strftime(...)`
+  und delegiert an Orchestrator mit Defaults `FillMode.NEXT_OPEN`,
+  `Granularity.DAILY`, `initial_cash=100_000.0`. Strukturiertes Logging
+  `backtest.dashboard.start`/`complete`/`unknown_strategy`. Errors
+  (UnknownStrategy, CacheMissing, InvalidParams, BacktestError) reicht
+  der Streamlit-Layer ab und zeigt deutsche `st.error(...)`-Texte.
+  `scripts/backtest_dashboard.py` nutzt jetzt `st.tabs([...])`: Tab
+  "Run-Form" mit Strategie/Universe-Selectbox + Custom-Ticker + Date-Inputs,
+  `disabled`-Button waehrend Run, Spinner + Result-Anzeige (KPIs,
+  Equity-Curve, Trades) direkt darunter; Tab "Read-Mode" bleibt aus 3.3.
+  13 neue Tests (Happy-Path + Unknown + Empty-Ticker + Universe-Resolution
+  + Uppercase + Run-ID-Format + Cache-Propagation + Logging-Events).
+  332/332 gruen. ruff + mypy clean (ausser pre-existing core/logging.py).
+  Smoke: `importlib.util`-Load des Scripts ohne Streamlit-Import OK.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase 3 Slice 3.4 (CLI)                        | DONE       | Tag `p3-backtest/3.4`               |
-| Phase 3 Slice 3.5 (Dashboard-Trigger)          | offen      | Nach 3.4                             |
+| Phase 3 Slice 3.5 (Dashboard-Trigger)          | DONE       | Tag `p3-backtest/3.5`               |
+| Phase 3 Slice 3.6 (Vergleichsansicht)          | offen      | Nach 3.5                             |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
 | Pre-existing mypy-Errors in core/logging.py    | Optional   | 2 Lines Fix, nicht im Slice-Scope    |
