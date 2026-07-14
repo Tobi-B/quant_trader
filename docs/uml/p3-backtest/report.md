@@ -1,9 +1,9 @@
 # UML: Slice 3.3 - Report (Console + Plotly + JSON + Streamlit)
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P3 Backtest
 Slice:     3.3 Report
-Approved:  -
+Approved:  2026-07-14
 
 Mapped Requirements:
 - NFR-Ux-1: CLI-Texte deutsch, klar

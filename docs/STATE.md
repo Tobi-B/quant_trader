@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `f9c1b66`                                           |
+| Letzter Commit (main) | `116f6a8`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 261/261 gruen                                       |
+| Tests                 | 294/294 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P3 Backtest-Engine + Reports (IN_PROGRESS)          |
-| Aktiver Slice         | Phase 3 / Slice 3.2 (Metrics) - DONE                |
-| Open Decision         | Slice 3.3-3.5 Implementierung                       |
+| Aktiver Slice         | Phase 3 / Slice 3.3 (Report) - DONE                 |
+| Open Decision         | Slice 3.4-3.5 Implementierung                       |
 
 ## Phasen-Tags (chronologisch)
 
@@ -31,6 +31,7 @@
 | `p2-strategies/2.5` | Signal-Runner CLI   | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.1`   | Backtest Engine Core | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.2`   | Metrics             | 2026-07-14 | abgeschlossen |
+| `p3-backtest/3.3`   | Report (Console + Plotly + JSON + Streamlit) | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -86,13 +87,21 @@
   CAGR via math.pow (mypy-safe). 34 neue Tests (EquityCurveStats 17,
   TradeStats 6, MetricsCalculator 9, Integration 1). 261/261 gruen.
   ruff + mypy clean.
+- **Slice 3.3 DONE**: Report-Sub-Package mit ConsoleFormatter (fixed-width
+  deutsche Tabellen), PlotlyExporter (self-contained HTML via CDN),
+  JsonExporter (stabile Schema v1 mit ISO-Dates), ReportLoader
+  (liest result.json aus reports/<run_id>/), ReportBuilder
+  (orchestriert alle drei). `scripts/backtest_dashboard.py` mit
+  Streamlit-Read-Mode (Sidebar-Selectors, Plotly-Chart, KPI-Metriken,
+  Trade-Tabelle). 33 neue Tests (console 10, plotly 4, json 7, loader
+  7, builder 5). 294/294 gruen. ruff + mypy clean. Dashboard-Script
+  manuell smoke-getestet (Modul-Load OK).
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase 3 Slice 3.3 (Report)                     | offen      | Implementierung naechster Slice      |
-| Phase 3 Slice 3.4 (CLI)                        | offen      | Nach 3.3                             |
+| Phase 3 Slice 3.4 (CLI)                        | offen      | Implementierung naechster Slice      |
 | Phase 3 Slice 3.5 (Dashboard-Trigger)          | offen      | Nach 3.4                             |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
@@ -130,8 +139,8 @@ Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md, docs/architecture.md
        git log --oneline -30
        docs/adr/ (welche ADRs sind accepted/proposed?)
        docs/userstories/p3-backtest/backtest.md
-       docs/uml/p3-backtest/report.md
-Frage: Slice 3.3 (Report) Stories/UML re-approven? -> Slice-PRD erstellen
+       docs/uml/p3-backtest/cli.md
+Frage: Slice 3.4 (CLI) Stories/UML re-approven? -> Slice-PRD erstellen
 ```
 
 ## Pflege

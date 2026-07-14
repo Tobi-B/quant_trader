@@ -12,6 +12,16 @@ from quant_trader.backtest.metrics import (
     TradeStats,
 )
 from quant_trader.backtest.portfolio import Portfolio
+from quant_trader.backtest.report import (
+    BacktestReport,
+    ConsoleFormatter,
+    JsonExporter,
+    PlotlyExporter,
+    ReportBuilder,
+    ReportLoader,
+    ReportPaths,
+    RunSummary,
+)
 from quant_trader.backtest.sizer import EqualWeightSizer, PositionSizer, SizingResult
 from quant_trader.backtest.types import (
     BacktestConfig,
@@ -28,18 +38,26 @@ __all__ = [
     "BacktestConfigError",
     "BacktestEngine",
     "BacktestError",
+    "BacktestReport",
     "BacktestResult",
+    "ConsoleFormatter",
     "EqualWeightSizer",
     "EquityCurveStats",
     "EquitySnapshot",
     "Fill",
     "FillMode",
     "FillSimulator",
+    "JsonExporter",
     "Metrics",
     "MetricsCalculator",
     "PendingFill",
+    "PlotlyExporter",
     "Portfolio",
     "PositionSizer",
+    "ReportBuilder",
+    "ReportLoader",
+    "ReportPaths",
+    "RunSummary",
     "SizingResult",
     "Trade",
     "TradeStats",
