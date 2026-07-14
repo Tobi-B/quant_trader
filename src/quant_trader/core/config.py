@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     db_path: Path = Path("./quant_trader.sqlite")
     log_level: str = "INFO"
     alphavantage_key: str = ""
+    fmp_api_key: str = ""
     stockdata_api_token: str = ""
 
 
