@@ -38,7 +38,7 @@ class MockBroker:
         self._positions: dict[str, int] = {}
 
     def is_connected(self) -> bool:
-        return True
+        return not getattr(self, "_force_disconnected", False)
 
     def place_order(self, ticker: str, action: Action, qty: int) -> Order:
         client_order_id = str(uuid.uuid4())

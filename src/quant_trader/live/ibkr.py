@@ -40,6 +40,13 @@ class IBKRBroker:
         return self._ib
 
     def connect(self) -> None:
+        """Establish connection to TWS. **No credentials in code.**
+
+        The IBKR login happens manually at the TWS prompt (NFR-Sec-2):
+        this method calls `ib.connect(host, port, clientId)` without any
+        username, password or API-token argument. The Trader must approve
+        the API connection in the TWS dialog.
+        """
         if not self.is_connected():
             self._ib.connect(self._host, self._port, clientId=self._client_id)
 

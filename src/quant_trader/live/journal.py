@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from quant_trader.live.types import DailySummary
 from quant_trader.strategies.types import Action
 
 
@@ -55,6 +56,16 @@ class TradeJournal:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_trades_run_id ON trades(run_id);
+            CREATE TABLE IF NOT EXISTS daily_summaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                strategy_name TEXT NOT NULL,
+                total_trades INTEGER NOT NULL,
+                open_positions_count INTEGER NOT NULL,
+                total_pnl REAL NOT NULL,
+                duration_seconds REAL NOT NULL,
+                closed_at TEXT NOT NULL
+            );
             """
         )
         self._conn.commit()
@@ -132,6 +143,44 @@ class TradeJournal:
             ).fetchall()
         return [self._to_trade_row(row) for row in rows]
 
+    def append_summary(self, summary: DailySummary) -> int:
+        cursor = self._conn.execute(
+            """
+            INSERT INTO daily_summaries (
+                run_id, strategy_name, total_trades,
+                open_positions_count, total_pnl, duration_seconds, closed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                summary.run_id,
+                summary.strategy_name,
+                summary.total_trades,
+                summary.open_positions_count,
+                summary.total_pnl,
+                summary.duration_seconds,
+                summary.closed_at,
+            ),
+        )
+        self._conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a summary row id")
+        return cursor.lastrowid
+
+    def list_summaries(self) -> list[DailySummary]:
+        rows = self._conn.execute("SELECT * FROM daily_summaries ORDER BY id").fetchall()
+        return [
+            DailySummary(
+                run_id=str(row["run_id"]),
+                strategy_name=str(row["strategy_name"]),
+                total_trades=int(row["total_trades"]),
+                open_positions_count=int(row["open_positions_count"]),
+                total_pnl=float(row["total_pnl"]),
+                duration_seconds=float(row["duration_seconds"]),
+                closed_at=str(row["closed_at"]),
+            )
+            for row in rows
+        ]
+
     def close(self) -> None:
         self._conn.close()
 
@@ -159,4 +208,4 @@ class TradeJournal:
         )
 
 
-__all__ = ["TradeJournal", "TradeRow"]
+__all__ = ["DailySummary", "TradeJournal", "TradeRow"]

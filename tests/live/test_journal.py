@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from quant_trader.live import TradeJournal
+from quant_trader.live import DailySummary, TradeJournal
 from quant_trader.strategies import Action
 
 _OPENED_AT = datetime(2026, 7, 14, 10, 0, 0)
@@ -109,3 +109,64 @@ def test_journal_enables_wal_mode(tmp_path: Path) -> None:
     mode = journal._conn.execute("PRAGMA journal_mode").fetchone()[0]
     journal.close()
     assert mode == "wal"
+
+
+def test_journal_creates_daily_summaries_table(tmp_path: Path) -> None:
+    db_path = tmp_path / "trades.sqlite"
+    journal = TradeJournal(db_path)
+    with sqlite3.connect(db_path) as connection:
+        table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_summaries'"
+        ).fetchone()
+    journal.close()
+    assert table == ("daily_summaries",)
+
+
+def test_journal_append_summary_inserts_row(tmp_path: Path) -> None:
+    journal = TradeJournal(tmp_path / "trades.sqlite")
+    summary = DailySummary(
+        run_id="run-1",
+        strategy_name="sma_cross",
+        total_trades=5,
+        open_positions_count=2,
+        total_pnl=123.45,
+        duration_seconds=3600.0,
+        closed_at="2026-07-14T17:00:00",
+    )
+    row_id = journal.append_summary(summary)
+    summaries = journal.list_summaries()
+    journal.close()
+    assert row_id == 1
+    assert len(summaries) == 1
+    assert summaries[0] == summary
+
+
+def test_journal_list_summaries_returns_all_in_id_order(tmp_path: Path) -> None:
+    journal = TradeJournal(tmp_path / "trades.sqlite")
+    first = DailySummary(
+        run_id="run-1",
+        strategy_name="sma_cross",
+        total_trades=1,
+        open_positions_count=0,
+        total_pnl=10.0,
+        duration_seconds=60.0,
+        closed_at="2026-07-14T16:00:00",
+    )
+    second = DailySummary(
+        run_id="run-2",
+        strategy_name="momentum",
+        total_trades=3,
+        open_positions_count=1,
+        total_pnl=-5.0,
+        duration_seconds=1800.0,
+        closed_at="2026-07-14T17:00:00",
+    )
+    journal.append_summary(first)
+    journal.append_summary(second)
+    summaries = journal.list_summaries()
+    journal.close()
+    assert [s.run_id for s in summaries] == ["run-1", "run-2"]
+    assert summaries[0].strategy_name == "sma_cross"
+    assert summaries[1].strategy_name == "momentum"
+    assert summaries[0].total_pnl == 10.0
+    assert summaries[1].total_pnl == -5.0

@@ -44,4 +44,33 @@ class Position:
     avg_cost: float = 0.0
 
 
-__all__ = ["Order", "OrderStatus", "OrderType", "Position"]
+@dataclass(frozen=True)
+class DailySummary:
+    """End-of-run summary persisted to the `daily_summaries` table."""
+
+    run_id: str
+    strategy_name: str
+    total_trades: int
+    open_positions_count: int
+    total_pnl: float
+    duration_seconds: float
+    closed_at: str
+
+
+@dataclass(frozen=True)
+class ReconnectConfig:
+    """Auto-reconnect tuning parameters for the live loop."""
+
+    initial_delay: float = 1.0
+    max_delay: float = 30.0
+    max_attempts: int = 10
+
+
+__all__ = [
+    "DailySummary",
+    "Order",
+    "OrderStatus",
+    "OrderType",
+    "Position",
+    "ReconnectConfig",
+]

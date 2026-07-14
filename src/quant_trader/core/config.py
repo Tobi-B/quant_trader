@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ibkr_port: int = 7497
     ibkr_client_id: int = 1
     mock_fill_price: float = 100.0
+    reconnect_initial_delay: float = 1.0
+    reconnect_max_delay: float = 30.0
+    reconnect_max_attempts: int = 10
 
 
 @lru_cache(maxsize=1)

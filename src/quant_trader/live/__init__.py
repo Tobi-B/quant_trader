@@ -8,10 +8,20 @@ from quant_trader.live.journal import TradeJournal, TradeRow
 from quant_trader.live.loop import LiveLoop, LiveLoopSummary
 from quant_trader.live.mock import MockBroker
 from quant_trader.live.protocol import BrokerClient
-from quant_trader.live.types import Order, OrderStatus, OrderType, Position
+from quant_trader.live.summary import DailySummaryFormatter
+from quant_trader.live.types import (
+    DailySummary,
+    Order,
+    OrderStatus,
+    OrderType,
+    Position,
+    ReconnectConfig,
+)
 
 __all__ = [
     "BrokerClient",
+    "DailySummary",
+    "DailySummaryFormatter",
     "IBKRBarSource",
     "IBKRBroker",
     "LiveLoop",
@@ -23,6 +33,7 @@ __all__ = [
     "OrderType",
     "Position",
     "RealtimeBarSource",
+    "ReconnectConfig",
     "TradeJournal",
     "TradeRow",
     "build_broker",

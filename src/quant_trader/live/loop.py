@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sqlite3
 import time
-from dataclasses import dataclass
-from datetime import timedelta
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
 from typing import Protocol, runtime_checkable
 
 from quant_trader.core.logging import get_logger
 from quant_trader.live.bars import RealtimeBarSource
 from quant_trader.live.journal import TradeJournal
 from quant_trader.live.protocol import BrokerClient
-from quant_trader.live.types import OrderStatus
+from quant_trader.live.summary import DailySummaryFormatter
+from quant_trader.live.types import DailySummary, OrderStatus, ReconnectConfig
 from quant_trader.strategies.base import StrategyBase
 from quant_trader.strategies.types import Action, PortfolioState
 
 _logger = get_logger("live_loop")
+_MONITOR_INTERVAL_SECONDS = 5.0
 
 
 @runtime_checkable
@@ -46,6 +49,7 @@ class LiveLoop:
         journal: TradeJournal,
         run_id: str,
         duration: timedelta | None,
+        reconnect_config: ReconnectConfig | None = None,
     ) -> None:
         self._strategy = strategy
         self._broker = broker
@@ -53,6 +57,8 @@ class LiveLoop:
         self._journal = journal
         self._run_id = run_id
         self._duration = duration
+        self._reconnect_config = reconnect_config or ReconnectConfig()
+        self._monitor_task: asyncio.Task[None] | None = None
 
     async def run(self) -> LiveLoopSummary:
         if not self._strategy.ticker:
@@ -68,6 +74,7 @@ class LiveLoop:
             strategy=self._strategy.name,
             ticker=self._strategy.ticker,
         )
+        self._monitor_task = asyncio.create_task(self._monitor_connection())
         try:
             self._connect()
             self._source.subscribe(self._strategy.ticker)
@@ -166,12 +173,14 @@ class LiveLoop:
                 total_pnl=sum(row.pnl or 0.0 for row in rows),
             )
         finally:
+            await self._shutdown_monitor()
             try:
                 self._source.stop()
             finally:
                 try:
                     self._disconnect()
                 finally:
+                    self._write_daily_summary(started)
                     self._journal.close()
         if summary is None:
             raise RuntimeError("Live loop ended without a summary")
@@ -201,6 +210,91 @@ class LiveLoop:
     def _disconnect(self) -> None:
         if isinstance(self._broker, _ConnectableBroker) and self._broker.is_connected():
             self._broker.disconnect()
+
+    async def _monitor_connection(self) -> None:
+        try:
+            while True:
+                await asyncio.sleep(_MONITOR_INTERVAL_SECONDS)
+                if not self._broker.is_connected():
+                    _logger.warning("live_loop.broker_disconnected", run_id=self._run_id)
+                    await self._reconnect_with_backoff()
+        except asyncio.CancelledError:
+            pass
+
+    async def _reconnect_with_backoff(self) -> None:
+        delay = self._reconnect_config.initial_delay
+        max_delay = self._reconnect_config.max_delay
+        max_attempts = self._reconnect_config.max_attempts
+        for attempt in range(1, max_attempts + 1):
+            await asyncio.sleep(delay)
+            try:
+                connect = getattr(self._broker, "connect", None)
+                if connect is None:
+                    raise RuntimeError("Broker does not support connect()")
+                connect()
+                if not self._broker.is_connected():
+                    raise RuntimeError("Broker reported not connected after connect()")
+                _logger.info(
+                    "live_loop.reconnected",
+                    run_id=self._run_id,
+                    attempt=attempt,
+                )
+                self._restore_subscriptions()
+                self._broker.get_positions()
+                return
+            except Exception as exc:
+                _logger.warning(
+                    "live_loop.reconnect_attempt_failed",
+                    run_id=self._run_id,
+                    attempt=attempt,
+                    error=str(exc),
+                )
+                delay = min(delay * 2, max_delay)
+        _logger.error("live_loop.reconnect_failed", run_id=self._run_id)
+        raise ConnectionError("reconnect failed after max attempts")
+
+    def _restore_subscriptions(self) -> None:
+        subscribed = getattr(self._source, "_subscribed", None)
+        if subscribed is None:
+            return
+        for ticker in list(subscribed):
+            self._source.subscribe(ticker)
+
+    def _write_daily_summary(self, started: float) -> None:
+        if not isinstance(self._journal, TradeJournal):
+            return
+        duration = time.monotonic() - started
+        rows = self._journal.list_trades(self._run_id)
+        open_positions = sum(1 for row in rows if row.exit_price is None)
+        total_pnl = sum(row.pnl or 0.0 for row in rows)
+        summary = DailySummary(
+            run_id=self._run_id,
+            strategy_name=self._strategy.name,
+            total_trades=len(rows),
+            open_positions_count=open_positions,
+            total_pnl=total_pnl,
+            duration_seconds=duration,
+            closed_at=datetime.now().isoformat(timespec="seconds"),
+        )
+        try:
+            self._journal.append_summary(summary)
+        except sqlite3.OperationalError as exc:
+            _logger.warning(
+                "live_loop.summary_persist_failed",
+                run_id=self._run_id,
+                error=str(exc),
+            )
+        _logger.info("live_loop.daily_summary", **asdict(summary))
+        print(DailySummaryFormatter().format(summary, rows), flush=True)
+
+    async def _shutdown_monitor(self) -> None:
+        if self._monitor_task is None:
+            return
+        if not self._monitor_task.done():
+            self._monitor_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await self._monitor_task
+        self._monitor_task = None
 
 
 __all__ = ["LiveLoop", "LiveLoopSummary"]
