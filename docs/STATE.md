@@ -7,14 +7,14 @@
 
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
-| Datum                 | 2026-07-10                                          |
-| Letzter Commit (main) | `ed3af58`                                           |
+| Datum                 | 2026-07-14                                          |
+| Letzter Commit (main) | `ea2364c`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
 | Tests                 | 168/168 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P2 Strategien                                       |
-| Aktiver Slice         | 2.5 Signal-Runner-CLI - DRAFT                       |
-| Open Decision         | Slice 2.5 Stories/UML re-approven                    |
+| Aktiver Slice         | 2.5 Signal-Runner-CLI - IN_PROGRESS                |
+| Open Decision         | Slice 2.5 Implementierung                           |
 
 ## Phasen-Tags (chronologisch)
 
@@ -28,7 +28,7 @@
 | `p2-strategies/2.2` | Trend (SMA + Momentum) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.3` | Mean-Reversion (RSI) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.4` | ETF-Rotation        | 2026-07-10 | abgeschlossen |
-| `p2-strategies/2.5` | Signal-Runner CLI   | offen  | DRAFT      |
+| `p2-strategies/2.5` | Signal-Runner CLI   | 2026-07-14 | IN_PROGRESS |
 
 ## Was steht (verifiziert)
 
@@ -64,8 +64,7 @@
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Slice 2.5 Stories + UML re-approven             | Nutzer     | US-P2.7 + runner-UML                |
-| Slice 2.5 Slice-PRD + Implementation            | nach OK    | Signal-Runner-CLI (Smoke)           |
+| Slice 2.5 Implementierung (Runner + CLI)        | in Arbeit  | nach Fertigstellung -> Phase 3       |
 | Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Phase 2                          |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
