@@ -2,19 +2,20 @@
 
 Phase:    P3 Backtest-Engine + Reports
 Status:   US-P3.1 bis US-P3.9 APPROVED (Slices 3.1-3.5, 2026-07-14)
-          US-P3.9 (Slice 3.5) am 2026-07-14 freigegeben
+          US-P3.10 DRAFT (Slice 3.6, wartet auf User-Approval)
 Persona:  Tobias (privater Einsteiger-Trader)
-Quelle:   Interview am 2026-07-14
+Quelle:   Interview am 2026-07-14 + Erweiterung 2026-07-14 (Strategie-Vergleich)
 
 Konvention: jede Story folgt INVEST + MoSCoW + T-Shirt-Size + Gherkin.
 Nutzer-zentriert: das "Was & Warum", nicht das "Wie".
 
-Slicing (5 Slices, genehmigt 2026-07-14):
+Slicing (6 Slices, genehmigt 2026-07-14; +1 in DRAFT):
 - **Slice 3.1** Backtest Engine Core
 - **Slice 3.2** Metrics
 - **Slice 3.3** Report (Console + Plotly HTML + JSON + Streamlit, read-only)
 - **Slice 3.4** Backtest CLI
 - **Slice 3.5** Interaktives Backtest-Dashboard (Run-Trigger im Streamlit-UI)
+- **Slice 3.6** Dashboard Strategie-Vergleichsansicht (DRAFT)
 
 Globale Defaults (aus Interview, 2026-07-14):
 - Initial Cash: 100.000 USD (per CLI ueberschreibbar)
@@ -222,19 +223,58 @@ bewusst ausserhalb des UI (CLI-/YAML-Defaults), damit der Scope klein bleibt.
 
 ---
 
+## Slice 3.6 - Dashboard Strategie-Vergleichsansicht (DRAFT)
+
+Erweitert das Streamlit-Dashboard um einen zweiten Tab "Vergleich", in
+dem der Trader alle registrierten Strategien auf einen Blick sieht und
+anhand der jeweils aktuellsten Backtest-Runs vergleichen kann. Fokus
+ist der Strategie-Vergleich (nicht die Run-Geschichte), damit der Trader
+schnell entscheiden kann, welche Strategie weiter verfolgt werden soll.
+
+Live-Paper-Trading (reale Marktdaten, simulierte Orders ohne Geld) ist
+explizit Phase 5 und bleibt out of scope. Die Vergleichsansicht in P3
+nutzt ausschliesslich die vorhandenen Backtest-Reports.
+
+### US-P3.10 - Registrierte Strategien im Dashboard vergleichen
+
+- **Als** Trader
+- **moechte ich** im Dashboard einen Tab "Vergleich" sehen, in dem alle
+  registrierten Strategien mit ihrem letzten Backtest-Ergebnis
+  (Metriken + Equity-Curve) nebeneinander aufgelistet sind,
+- **damit** ich auf einen Blick erkennen kann, welche Strategie
+  aktuell am besten performt, ohne manuell durch Reports zu navigieren.
+
+- **Priority:** Should
+- **Estimate:** M
+- **Acceptance Criteria (Gherkin):**
+  - **Given** das Streamlit-Extra ist installiert und ich habe das Dashboard geoeffnet
+  - **When** ich auf den Tab "Vergleich" wechsle
+  - **Then** sehe ich eine Tabelle mit einer Zeile pro registrierter Strategie (aus `StrategyLoader.registered_names()`) und Spalten: Strategie, Version, letzter Run (run_id oder "keiner"), Total Return %, Sharpe, Max Drawdown %, CAGR %, Anzahl Trades, Exposure %
+  - **And** fuer jede Strategie mit vorhandenem Backtest-Report wird der juengste `RunSummary` (nach `start` desc) verwendet; Strategien ohne Report zeigen in den Metrik-Spalten ein "n/a"
+  - **And** ueber der Tabelle sehe ich eine Auswahl an Equity-Curves: jede Strategie mit Report wird in einem eigenen kleinen Plotly-Chart (gestapelt oder Gitter) gezeigt
+  - **And** Sortierung der Tabelle ist per Default nach Sharpe absteigend (None-Werte ans Ende)
+  - **And** ein "Backtest starten"-Button pro Zeile oeffnet den Run-Form-Tab (US-P3.9) mit vorausgewaehlter Strategie (Tab-Wechsel, nicht neuer Run)
+  - **And** wenn keine Strategien registriert sind: Hinweis "Keine Strategien registriert" statt Crash
+  - **And** wenn keine Reports vorhanden sind, aber Strategien registriert: Tabelle zeigt Metriken als "n/a", Equity-Chart-Bereich zeigt Hinweis "Noch keine Backtests gelaufen"
+
+- **Out of Scope:** Live-Paper-Trading mit echten Marktdaten (Phase 5); On-the-fly-Backtest fuer den Vergleich (kein Auto-Run beim Tab-Wechsel); Filter oder Drill-Down auf Parameter-Presets; Vergleich ueber mehrere Universen (Charts nur Default-Config, falls vorhanden); Sort/Filter-UI ueber die Vergleichstabelle hinaus; Export der Vergleichstabelle als CSV.
+
+---
+
 ## Mapped NFRs (siehe docs/requirements/nfrs.md)
 
-| Story   | NFR-IDs                                                |
-|---------|---------------------------------------------------------|
-| US-P3.1 | NFR-Perf-1 (<30s), NFR-Obs-1 (Logs), NFR-Data-1 (Cache) |
-| US-P3.2 | NFR-Ux-1 (klare Logs: insufficient_cash)               |
-| US-P3.3 | NFR-Perf-1 (schnelle Metrik-Berechnung)                |
-| US-P3.4 | NFR-Ux-1 (deutsche Texte, klar)                        |
-| US-P3.5 | NFR-Data-2 (Adj. Close)                                |
-| US-P3.6 | NFR-Data-2                                              |
-| US-P3.7 | NFR-Ux-1                                               |
-| US-P3.8 | NFR-Ux-1, NFR-Obs-1                                   |
-| US-P3.9 | NFR-Ux-1, NFR-Obs-1, NFR-Perf-1, NFR-Data-1           |
+| Story    | NFR-IDs                                                |
+|----------|---------------------------------------------------------|
+| US-P3.1  | NFR-Perf-1 (<30s), NFR-Obs-1 (Logs), NFR-Data-1 (Cache) |
+| US-P3.2  | NFR-Ux-1 (klare Logs: insufficient_cash)               |
+| US-P3.3  | NFR-Perf-1 (schnelle Metrik-Berechnung)                |
+| US-P3.4  | NFR-Ux-1 (deutsche Texte, klar)                        |
+| US-P3.5  | NFR-Data-2 (Adj. Close)                                |
+| US-P3.6  | NFR-Data-2                                              |
+| US-P3.7  | NFR-Ux-1                                               |
+| US-P3.8  | NFR-Ux-1, NFR-Obs-1                                   |
+| US-P3.9  | NFR-Ux-1, NFR-Obs-1, NFR-Perf-1, NFR-Data-1           |
+| US-P3.10 | NFR-Ux-1 (deutsche UI-Texte)                            |
 
 ---
 
@@ -242,10 +282,11 @@ bewusst ausserhalb des UI (CLI-/YAML-Defaults), damit der Scope klein bleibt.
 
 - [ ] BacktestEngine + Portfolio + Position-Sizer implementiert (3.1)
 - [ ] Metrics: Sharpe, CAGR, MDD, Win-Rate, Exposure (3.2)
-- [ ] Report: ConsoleFormatter, PlotlyExporter, JSONExporter, Streamlit-Dashboard (3.3)
+- [ ] Report: ConsoleFormatter, PlotlyExporter, JsonExporter, Streamlit-Dashboard (3.3)
 - [ ] CLI `python -m quant_trader.backtest {run,list}` (3.4)
 - [ ] Dashboard: Run-Trigger mit Engine-Wiring, Progress, Fehler-Handling (3.5)
-- [ ] Tests fuer Engine-Korrektheit, deterministische Metriken, Report-Roundtrip, Dashboard-Trigger (3.5)
+- [ ] Dashboard: Strategie-Vergleichsansicht (registrierte Strategien + letzte Runs) (3.6)
+- [ ] Tests fuer Engine-Korrektheit, deterministische Metriken, Report-Roundtrip, Dashboard-Trigger, Vergleichsansicht
 - [ ] `make test`, `make lint`, `make smoke` gruen
 - [ ] Conventional Commits, einer pro Slice
 - [ ] `docs/STATE.md` aktualisiert, Tag `p3-backtest` gesetzt
