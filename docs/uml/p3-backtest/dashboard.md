@@ -1,9 +1,9 @@
 # UML: Slice 3.5 - Interaktives Backtest-Dashboard (Run-Trigger)
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P3 Backtest
 Slice:     3.5 Interaktives Backtest-Dashboard
-Approved:  -
+Approved:  2026-07-14
 
 Mapped Requirements:
 - NFR-Ux-1: UI-Texte deutsch, klare Fehlermeldungen
