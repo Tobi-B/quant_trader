@@ -8,10 +8,12 @@ Tabs:
   "Backtest starten", see the result (KPIs + equity curve + trades) right
   under the form in the same tab.
 - "Read-Mode" (US-P3.7): browse past backtest reports from `reports/`.
+- "Vergleich" (US-P3.10): compare the latest report for every registered strategy.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -25,6 +27,11 @@ except ImportError as exc:
         "streamlit ist nicht installiert. Bitte `uv sync --extra ui` ausfuehren."
     ) from exc
 
+from quant_trader.backtest.comparison import (
+    ComparisonRow,
+    ComparisonTable,
+    latest_runs_by_strategy,
+)
 from quant_trader.backtest.dashboard_runner import DashboardRunner
 from quant_trader.backtest.errors import (
     BacktestError,
@@ -48,6 +55,7 @@ _REPORTS_DIR = Path("./reports")
 _CUSTOM_TICKER_OPTION = "(Custom-Ticker)"
 _RUN_FORM_TAB = "Run-Form"
 _READ_MODE_TAB = "Read-Mode"
+_COMPARISON_TAB = "Vergleich"
 
 
 def _reports_dir() -> Path:
@@ -111,6 +119,16 @@ def _render_equity_curve(report: BacktestReport) -> go.Figure:
     return fig
 
 
+def _render_comparison_equity_curve(report: BacktestReport) -> go.Figure:
+    fig = _render_equity_curve(report)
+    fig.update_layout(
+        title=f"{report.strategy_name} - {report.run_id}",
+        height=320,
+        showlegend=False,
+    )
+    return fig
+
+
 def _render_kpi(metrics: Metrics | None) -> None:
     if metrics is None:
         st.info("Keine Metriken vorhanden")
@@ -157,9 +175,15 @@ def _render_run_form(
         st.info("Keine Strategien registriert")
         return
 
+    prefill_strategy = st.session_state.pop("prefill_strategy", None)
+    strategy_index = (
+        strategy_names.index(prefill_strategy)
+        if isinstance(prefill_strategy, str) and prefill_strategy in strategy_names
+        else 0
+    )
     with st.sidebar.form(key="run_form"):
         st.header("Backtest-Konfiguration")
-        strategy = st.selectbox("Strategie", strategy_names)
+        strategy = st.selectbox("Strategie", strategy_names, index=strategy_index)
         universe_options = [_CUSTOM_TICKER_OPTION, *preset_names]
         universe_choice = st.selectbox("Universe-Preset", universe_options)
         ticker = ""
@@ -267,6 +291,104 @@ def _render_read_mode(report_loader: ReportLoader) -> None:
     _render_trades_table(report)
 
 
+def _comparison_metric(value: float | int | None) -> float | int | str:
+    return "n/a" if value is None else value
+
+
+def _comparison_dataframe(rows: list[ComparisonRow]) -> pd.DataFrame:
+    records: list[dict[str, str | float | int]] = [
+        {
+            "Strategie": row.strategy_name,
+            "Version": row.version or "n/a",
+            "letzter Run": row.latest_run_id or "keiner",
+            "Total Return %": _comparison_metric(row.total_return_pct),
+            "Sharpe": _comparison_metric(row.sharpe),
+            "Max Drawdown %": _comparison_metric(row.max_drawdown_pct),
+            "CAGR %": _comparison_metric(row.cagr_pct),
+            "Trades": _comparison_metric(row.n_trades),
+            "Exposure %": _comparison_metric(row.exposure_pct),
+        }
+        for row in rows
+    ]
+    return pd.DataFrame(records)
+
+
+def _render_comparison(report_loader: ReportLoader, strategy_names: list[str]) -> None:
+    summaries = latest_runs_by_strategy(report_loader, strategy_names)
+    report_count = sum(summary is not None for summary in summaries.values())
+    log.info(
+        "backtest.comparison.render",
+        strategy_count=len(strategy_names),
+        report_count=report_count,
+    )
+    if not strategy_names:
+        st.info("Keine Strategien registriert")
+        return
+
+    versions = {name: "1.0.0" for name in strategy_names}
+    base_rows = ComparisonTable.build_rows(summaries, strategy_versions=versions)
+    reports: dict[str, BacktestReport] = {}
+    populated_rows: list[ComparisonRow] = []
+    for row in base_rows:
+        if row.latest_run_id is None:
+            populated_rows.append(row)
+            continue
+        report = report_loader.load_run(row.latest_run_id)
+        reports[row.strategy_name] = report
+        metrics = report.metrics
+        if metrics is None:
+            populated_rows.append(row)
+            continue
+        populated_rows.append(
+            replace(
+                row,
+                total_return_pct=metrics.total_return_pct,
+                sharpe=metrics.sharpe_ratio,
+                max_drawdown_pct=metrics.max_drawdown_pct,
+                cagr_pct=metrics.cagr_pct,
+                n_trades=metrics.n_trades,
+                exposure_pct=metrics.exposure_pct,
+            )
+        )
+
+    rows = ComparisonTable.sort_by_sharpe_desc(populated_rows)
+    st.subheader("Equity-Curves")
+    if not reports:
+        st.info("Noch keine Backtests gelaufen")
+    else:
+        chart_rows = [row for row in rows if row.strategy_name in reports]
+        for offset in range(0, len(chart_rows), 2):
+            columns = st.columns(2)
+            for column, row in zip(columns, chart_rows[offset : offset + 2], strict=False):
+                with column:
+                    st.plotly_chart(
+                        _render_comparison_equity_curve(reports[row.strategy_name]),
+                        use_container_width=True,
+                    )
+
+    st.subheader("Strategie-Vergleich")
+    st.dataframe(_comparison_dataframe(rows), use_container_width=True, hide_index=True)
+    for row in rows:
+        action_columns = st.columns([3, 1])
+        action_columns[0].write(row.strategy_name)
+        if action_columns[1].button(
+            "Backtest starten",
+            key=f"comparison-start-{row.strategy_name}",
+            use_container_width=True,
+        ):
+            st.session_state.active_tab = 0
+            st.session_state.prefill_strategy = row.strategy_name
+            st.rerun()
+
+
+def _tab_default(tab_labels: list[str]) -> str | None:
+    requested_index = st.session_state.pop("active_tab", None)
+    if not isinstance(requested_index, int) or not 0 <= requested_index < len(tab_labels):
+        return None
+    st.session_state.pop("tabs", None)
+    return tab_labels[requested_index]
+
+
 def main() -> None:
     configure_logging("INFO")
     _reports_dir()
@@ -274,11 +396,18 @@ def main() -> None:
     st.title("QuantTrader - Backtest Dashboard")
 
     report_loader, runner, strategy_names, preset_names = _build_services()
-    tab_run, tab_read = st.tabs([_RUN_FORM_TAB, _READ_MODE_TAB])
+    tab_labels = [_RUN_FORM_TAB, _READ_MODE_TAB, _COMPARISON_TAB]
+    tab_run, tab_read, tab_comparison = st.tabs(
+        tab_labels,
+        default=_tab_default(tab_labels),
+        key="tabs",
+    )
     with tab_run:
         _render_run_form(runner, strategy_names, preset_names)
     with tab_read:
         _render_read_mode(report_loader)
+    with tab_comparison:
+        _render_comparison(report_loader, strategy_names)
 
 
 if __name__ == "__main__":

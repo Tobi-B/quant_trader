@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from quant_trader.backtest.comparison import ComparisonRow, latest_runs_by_strategy
 from quant_trader.backtest.dashboard_runner import DashboardRunner
 from quant_trader.backtest.engine import BacktestEngine
 from quant_trader.backtest.errors import (
@@ -50,6 +51,7 @@ __all__ = [
     "BacktestReport",
     "BacktestResult",
     "CacheMissingError",
+    "ComparisonRow",
     "ConsoleFormatter",
     "DashboardRunner",
     "EqualWeightSizer",
@@ -74,4 +76,5 @@ __all__ = [
     "Trade",
     "TradeStats",
     "UnknownStrategyError",
+    "latest_runs_by_strategy",
 ]
