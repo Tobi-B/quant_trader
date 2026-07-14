@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `<pending>`                                         |
-| Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 332/332 gruen                                       |
+| Letzter Commit (main) | `bf8058b`                                            |
+| Branch                | `main` (clean, alle Aenderungen gepusht)           |
+| Tests                 | 340/340 gruen                                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P3 Backtest-Engine + Reports (IN_PROGRESS)          |
-| Aktiver Slice         | Phase 3 / Slice 3.5 (Dashboard-Trigger) - DONE      |
-| Open Decision         | Slice 3.6 Implementierung (Vergleichsansicht)       |
+| Aktive Phase          | P3 Backtest-Engine + Reports (DONE)                 |
+| Aktiver Slice         | Phase 3 / Slice 3.6 (Vergleichsansicht) - DONE      |
+| Open Decision         | Naechste Phase nach P3                              |
 
 ## Phasen-Tags (chronologisch)
 
@@ -34,6 +34,7 @@
 | `p3-backtest/3.3`   | Report (Console + Plotly + JSON + Streamlit) | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.4`   | Backtest CLI | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.5`   | Dashboard Run-Trigger | 2026-07-14 | abgeschlossen |
+| `p3-backtest/3.6`   | Strategie-Vergleichsansicht | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -130,13 +131,23 @@
   + Uppercase + Run-ID-Format + Cache-Propagation + Logging-Events).
   332/332 gruen. ruff + mypy clean (ausser pre-existing core/logging.py).
   Smoke: `importlib.util`-Load des Scripts ohne Streamlit-Import OK.
+- **Slice 3.6 DONE**: Strategie-Vergleichsansicht als dritter Streamlit-Tab
+  implementiert. `latest_runs_by_strategy` waehlt pro registrierter Strategie
+  den juengsten Report deterministisch nach Startdatum und Run-ID.
+  `ComparisonRow` + `ComparisonTable` bauen und sortieren die Vergleichszeilen
+  (Sharpe absteigend, fehlende Werte zuletzt). Das Dashboard zeigt deutsche
+  Metrik-Spalten mit `n/a`, Equity-Mini-Charts im 2-Spalten-Grid und pro
+  Strategie einen Sprung ins vorausgefuellte Run-Form. Strukturiertes Logging
+  via `backtest.comparison.render`. 8 neue Tests, 340/340 gruen. Ruff Check +
+  Format gruen; mypy nur mit den zwei bekannten `core/logging.py`-Fehlern.
+  Dashboard-Modul-Smoke OK.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
 | Phase 3 Slice 3.5 (Dashboard-Trigger)          | DONE       | Tag `p3-backtest/3.5`               |
-| Phase 3 Slice 3.6 (Vergleichsansicht)          | offen      | Nach 3.5                             |
+| Phase 3 Slice 3.6 (Vergleichsansicht)          | DONE       | Tag `p3-backtest/3.6`               |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
 | Pre-existing mypy-Errors in core/logging.py    | Optional   | 2 Lines Fix, nicht im Slice-Scope    |
