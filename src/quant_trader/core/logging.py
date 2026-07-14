@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -36,4 +36,5 @@ def configure_logging(level: str = "INFO") -> None:
 
 def get_logger(name: str | None = None, **initial_values: Any) -> structlog.stdlib.BoundLogger:
     logger = structlog.get_logger(name) if name else structlog.get_logger()
-    return logger.bind(**initial_values) if initial_values else logger  # type: ignore[return-value]
+    bound = logger.bind(**initial_values) if initial_values else logger
+    return cast(structlog.stdlib.BoundLogger, bound)
