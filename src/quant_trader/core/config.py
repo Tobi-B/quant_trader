@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     alphavantage_key: str = ""
     fmp_api_key: str = ""
     stockdata_api_token: str = ""
+    live_enabled: bool = False
+    ibkr_host: str = "127.0.0.1"
+    ibkr_port: int = 7497
+    ibkr_client_id: int = 1
+    mock_fill_price: float = 100.0
 
 
 @lru_cache(maxsize=1)

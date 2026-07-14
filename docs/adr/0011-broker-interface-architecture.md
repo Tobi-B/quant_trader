@@ -1,6 +1,6 @@
 # ADR 0011: Broker-Interface-Architektur (Protocol + Mock + IBKR)
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-14
 Phase:      P5 Live-Trading
 Supersedes: -

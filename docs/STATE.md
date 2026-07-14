@@ -10,11 +10,11 @@
 | Datum                 | 2026-07-14                                          |
 | Letzter Commit (main) | (siehe `git log --oneline -1`)                     |
 | Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 378/378 gruen                                       |
+| Tests                 | 394/394 gruen                                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P4 Risk Management                                  |
-| Aktiver Slice         | Slice 4.1 (Risk-Engine) - DONE                     |
-| Open Decision         | Naechste Phase nach P4                            |
+| Aktive Phase          | P5 Live-Trading                                     |
+| Aktiver Slice         | Slice 5.1 (Broker Interface + Mock + Order) - DONE  |
+| Open Decision         | Naechster Slice: 5.2 Live Loop                    |
 
 ## Phasen-Tags (chronologisch)
 
@@ -37,6 +37,7 @@
 | `p3-backtest/3.6`   | Strategie-Vergleichsansicht | 2026-07-14 | abgeschlossen |
 | `p1-data/1.5`        | Financial Modelling Prep Provider als Primary | 2026-07-14 | abgeschlossen |
 | `p4-risk/4.1`        | Risk-Engine (Commission + Slippage + Stop-Loss) | 2026-07-14 | abgeschlossen |
+| `p5-live/5.1`        | Broker Interface + Mock + Order (Foundation) | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -51,7 +52,7 @@
 - **P2 Doku APPROVED** (22e6300): US-P2.1+US-P2.2 freigegeben, framework.md
   + runner.md UMLs APPROVED, Slice 2.1 PRD erstellt.
 - **Architecture-Doku** (53ab219): `docs/architecture.md` mit Layered-Overview,
-  Module-Tabelle, Datenfluss. `docs/adr/` mit 9 ADRs (0001-0009).
+  Module-Tabelle, Datenfluss. `docs/adr/` mit 11 ADRs (0001-0011).
 - **Slice 2.1 DONE** (0639c7e): Strategy Framework implementiert. 36 neue Tests
   (test_types, test_base, test_loader). 120/120 gruen. Lint + Format gruen.
   Registry-Pattern + ABC-Design via ADR 0007/0008 dokumentiert.
@@ -162,13 +163,34 @@
   (Commission-Berechnung 5, Commission-Buchung 4, Slippage 5,
   Stop-Loss 5, Integration 4). 378/378 gruen. ruff + mypy clean
   (inkl. `core/logging.py`). ADR-0010 Status `proposed` -> `accepted`.
+- **Slice 5.1 DONE**: Broker Interface + Mock + Order (Foundation).
+  `src/quant_trader/live/` als neues Sub-Package mit `Order`/`Position`
+  (frozen dataclasses), `OrderStatus`/`OrderType` (StrEnum), Protocol
+  `BrokerClient`, `MockBroker` (deterministisch, synchron SUBMITTED ->
+  FILLED; REJECTED bei qty<=0), `IBKRBroker` (Stub mit
+  `NotImplementedError` fuer Slice 5.2), `build_broker(settings)`
+  Factory (live_enabled -> IBKR vs Mock). `client_order_id` als UUID
+  (NFR-Rel-3 Idempotenz). ib_insync nur in `ibkr.py` mit
+  try/except ImportError -> `SystemExit`; Factory und `__init__.py`
+  lazy-importieren IBKRBroker, sodass CI ohne `live` extra lauffaehig
+  bleibt. Strukturiertes Logging `broker.order_placed`/
+  `broker.order_filled`/`broker.order_rejected`/
+  `broker.order_cancelled`. `Settings` erweitert um `live_enabled`,
+  `ibkr_host`, `ibkr_port`, `ibkr_client_id`, `mock_fill_price`
+  (alle mit Defaults; Backward-Compat gewahrt). 16 neue Tests
+  (MockBroker 12 inkl. Cancel-Pending/Filled/Unknown + State,
+  Factory 4). 394/394 gruen. ruff + mypy clean. ADR-0011 Status
+  `proposed` -> `accepted`.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase 4 Slice 4.1 (Risk-Engine)                | DONE       | Tag `p4-risk/4.1`                   |
-| Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Naechste Phase nach P4                |
+| Phase 5 Slice 5.1 (Broker Interface + Mock + Order) | DONE    | Tag `p5-live/5.1`                   |
+| Phase 5 Slice 5.2 (Live Loop: Connect/Subscribe/Run) | offen | Live-Loop mit ib_insync              |
+| Phase 5 Slice 5.3 (Auto-Reconnect, NFR-Rel-2)  | offen      | Reconnect-Logik                       |
+| Phase 5 Slice 5.4 (Tageszusammenfassung, NFR-Obs-2) | offen | Tagesabschluss                       |
+| Phase 5 Slice 5.5 (CLI + Credentials, NFR-Sec-2) | offen   | CLI + Credential-Persistierung       |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | Nach Phase 5                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
 
@@ -190,11 +212,11 @@ src/quant_trader/
 strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
 backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.6 + Risk 4.1 DONE)
 risk/          (entfaellt; Risk-Logik lebt in backtest/engine.py, ADR-0010)
-live/          (P5 kommt)
+live/          BrokerClient Protocol + MockBroker + IBKRBroker Stub + Order/Position Types + Factory (5.1 DONE)
 storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
 config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
-tests/         378 Tests, marker slow/live/integration
+tests/         394 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)
