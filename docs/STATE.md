@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `ea2364c`                                           |
+| Letzter Commit (main) | `380d752`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 168/168 gruen                                       |
+| Tests                 | 185/185 gruen                                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P2 Strategien                                       |
-| Aktiver Slice         | 2.5 Signal-Runner-CLI - IN_PROGRESS                |
-| Open Decision         | Slice 2.5 Implementierung                           |
+| Aktive Phase          | P2 Strategien (abgeschlossen)                       |
+| Aktiver Slice         | Phase 3 (Backtest-Engine + Reports) - DRAFT        |
+| Open Decision         | Phase-3-Slicing + erste User-Stories                |
 
 ## Phasen-Tags (chronologisch)
 
@@ -28,7 +28,7 @@
 | `p2-strategies/2.2` | Trend (SMA + Momentum) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.3` | Mean-Reversion (RSI) | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.4` | ETF-Rotation        | 2026-07-10 | abgeschlossen |
-| `p2-strategies/2.5` | Signal-Runner CLI   | 2026-07-14 | IN_PROGRESS |
+| `p2-strategies/2.5` | Signal-Runner CLI   | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -59,13 +59,25 @@
   (default / warmup / Param-Validierung / Warmup-Gate / Top-N-Buy /
   Holder-dropped-Sell / Defensive-Cash / Same-Month-NoSignal /
   Rebalance-Log / Loader-Integration). 168/168 gruen.
+- **Slice 2.5 DONE** (380d752): SignalRunner + SignalFormatter + CLI
+  (`python -m quant_trader.strategies {run,list}`). Auto-detect
+  Single-vs Multi-Ticker via `isinstance`. CLI-Subcommands `run` mit
+  `--strategy/--ticker/--universe/--granularity/--start/--end/--limit`,
+  `list` mit registrierten Strategien. 17 neue Tests (Formatter
+  empty/single/limit, Single-Ticker Happy/Missing/Ohne-Ticker,
+  Multi-Ticker Params+Preset, Unknown-Strategy, Parser-Structure,
+  CLI rc-Codes + List-Output). 185/185 gruen. ruff + mypy --strict
+  clean. Smoke: `python -m quant_trader.strategies list` liefert 4
+  Strategien; `run --strategy unknown` -> Exit 1 mit Available-Liste;
+  `run --strategy sma_cross --ticker ZZZZ` -> Exit 1 mit
+  Cache-Hint.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Slice 2.5 Implementierung (Runner + CLI)        | in Arbeit  | nach Fertigstellung -> Phase 3       |
-| Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Phase 2                          |
+| Phase 3 Slicing + User-Stories                 | Nutzer     | Slices 3.1-3.x definieren            |
+| Phase 3 (Backtest-Engine + Reports)            | spaeter    | Nach Slicing                          |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
 | Phase 7 (Docker-Deployment)                    | spaeter    | Nach Phase 5                          |
 | Pre-existing mypy-Errors in core/logging.py    | Optional   | 2 Lines Fix, nicht im Slice-Scope    |
@@ -85,14 +97,14 @@ src/quant_trader/
   core/        types, errors, config, logging
   universe/    loader (CLI fertig)
   data/        3 Provider + FallbackDecorator + Factory + Cache + Service + CLI
-strategies/    types + base + loader + SmaCross + Momentum + RSI (2.1+2.2+2.3 DONE); ETF-Rotation, Runner folgen
+strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
 backtest/      (P3 kommt)
 risk/          (P4 kommt)
 live/          (P5 kommt)
 storage/       SQLite (P5 kommt)
 config/universe_presets.yaml
 config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
-tests/         153 Tests, marker slow/live/integration
+tests/         185 Tests, marker slow/live/integration
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)
