@@ -1,8 +1,8 @@
 # Phase 3 - Backtest: User Stories
 
 Phase:    P3 Backtest-Engine + Reports
-Status:   US-P3.1 bis US-P3.9 APPROVED (Slices 3.1-3.5, 2026-07-14)
-          US-P3.10 DRAFT (Slice 3.6, wartet auf User-Approval)
+Status:   US-P3.1 bis US-P3.10 APPROVED (Slices 3.1-3.6, 2026-07-14)
+          US-P3.10 (Slice 3.6) am 2026-07-14 freigegeben
 Persona:  Tobias (privater Einsteiger-Trader)
 Quelle:   Interview am 2026-07-14 + Erweiterung 2026-07-14 (Strategie-Vergleich)
 
