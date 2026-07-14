@@ -5,6 +5,12 @@ from __future__ import annotations
 from quant_trader.backtest.engine import BacktestEngine
 from quant_trader.backtest.errors import BacktestConfigError, BacktestError
 from quant_trader.backtest.fill import FillSimulator
+from quant_trader.backtest.metrics import (
+    EquityCurveStats,
+    Metrics,
+    MetricsCalculator,
+    TradeStats,
+)
 from quant_trader.backtest.portfolio import Portfolio
 from quant_trader.backtest.sizer import EqualWeightSizer, PositionSizer, SizingResult
 from quant_trader.backtest.types import (
@@ -24,13 +30,17 @@ __all__ = [
     "BacktestError",
     "BacktestResult",
     "EqualWeightSizer",
+    "EquityCurveStats",
     "EquitySnapshot",
     "Fill",
     "FillMode",
     "FillSimulator",
+    "Metrics",
+    "MetricsCalculator",
     "PendingFill",
     "Portfolio",
     "PositionSizer",
     "SizingResult",
     "Trade",
+    "TradeStats",
 ]

@@ -1,9 +1,9 @@
 # UML: Slice 3.2 - Metrics
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P3 Backtest
 Slice:     3.2 Metrics
-Approved:  -
+Approved:  2026-07-14
 
 Mapped Requirements:
 - NFR-Perf-1: schnelle Berechnung (<30s fuer 5 Jahre Daily)

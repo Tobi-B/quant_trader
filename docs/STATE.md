@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `df55734`                                           |
+| Letzter Commit (main) | `f9c1b66`                                           |
 | Branch                | `main` (clean, alle Aenderungen gepusht)              |
-| Tests                 | 227/227 gruen                                       |
+| Tests                 | 261/261 gruen                                       |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P3 Backtest-Engine + Reports (IN_PROGRESS)          |
-| Aktiver Slice         | Phase 3 / Slice 3.1 (Engine Core) - DONE           |
-| Open Decision         | Slice 3.2-3.5 Implementierung                       |
+| Aktiver Slice         | Phase 3 / Slice 3.2 (Metrics) - DONE                |
+| Open Decision         | Slice 3.3-3.5 Implementierung                       |
 
 ## Phasen-Tags (chronologisch)
 
@@ -30,6 +30,7 @@
 | `p2-strategies/2.4` | ETF-Rotation        | 2026-07-10 | abgeschlossen |
 | `p2-strategies/2.5` | Signal-Runner CLI   | 2026-07-14 | abgeschlossen |
 | `p3-backtest/3.1`   | Backtest Engine Core | 2026-07-14 | abgeschlossen |
+| `p3-backtest/3.2`   | Metrics             | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -79,13 +80,18 @@
   Verteilung. 42 neue Tests (sizer 9, portfolio 12, fill 3, engine 18).
   227/227 gruen. ruff + mypy clean (ausser pre-existing
   `core/logging.py` Issue, out of scope).
+- **Slice 3.2 DONE**: MetricsCalculator + EquityCurveStats + TradeStats
+  implementiert. Total Return %, CAGR %, Sharpe Ratio (annualisiert,
+  rf=0, 252 Tage), Max Drawdown %, Win-Rate %, Exposure %, n_trades.
+  CAGR via math.pow (mypy-safe). 34 neue Tests (EquityCurveStats 17,
+  TradeStats 6, MetricsCalculator 9, Integration 1). 261/261 gruen.
+  ruff + mypy clean.
 
 ## Was offen ist
 
 | Was                                            | Wer        | Naechste Aktion                     |
 |------------------------------------------------|------------|--------------------------------------|
-| Phase 3 Slice 3.2 (Metrics)                    | offen      | Implementierung naechster Slice      |
-| Phase 3 Slice 3.3 (Report)                     | offen      | Nach 3.2                             |
+| Phase 3 Slice 3.3 (Report)                     | offen      | Implementierung naechster Slice      |
 | Phase 3 Slice 3.4 (CLI)                        | offen      | Nach 3.3                             |
 | Phase 3 Slice 3.5 (Dashboard-Trigger)          | offen      | Nach 3.4                             |
 | Phase 5 (Live Trading IBKR, Paper first)       | spaeter    | Nach Phase 3                          |
@@ -124,8 +130,8 @@ Lies:  docs/STATE.md, AGENTS.md, docs/00_dev_workflow.md, docs/architecture.md
        git log --oneline -30
        docs/adr/ (welche ADRs sind accepted/proposed?)
        docs/userstories/p3-backtest/backtest.md
-       docs/uml/p3-backtest/metrics.md
-Frage: Slice 3.2 (Metrics) Stories/UML re-approven? -> Slice-PRD erstellen
+       docs/uml/p3-backtest/report.md
+Frage: Slice 3.3 (Report) Stories/UML re-approven? -> Slice-PRD erstellen
 ```
 
 ## Pflege
