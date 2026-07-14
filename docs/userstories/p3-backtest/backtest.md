@@ -1,0 +1,219 @@
+# Phase 3 - Backtest: User Stories
+
+Phase:    P3 Backtest-Engine + Reports
+Status:   APPROVED  (2026-07-14, US-P3.1 bis US-P3.8 fuer Slices 3.1-3.4 freigegeben)
+Persona:  Tobias (privater Einsteiger-Trader)
+Quelle:   Interview am 2026-07-14
+
+Konvention: jede Story folgt INVEST + MoSCoW + T-Shirt-Size + Gherkin.
+Nutzer-zentriert: das "Was & Warum", nicht das "Wie".
+
+Slicing (4 Slices, genehmigt 2026-07-14):
+- **Slice 3.1** Backtest Engine Core
+- **Slice 3.2** Metrics
+- **Slice 3.3** Report (Console + Plotly HTML + JSON + Streamlit)
+- **Slice 3.4** Backtest CLI
+
+Globale Defaults (aus Interview, 2026-07-14):
+- Initial Cash: 100.000 USD (per CLI ueberschreibbar)
+- Fill Mode: `--fill-mode next_open` (default) oder `same_close`
+- Position-Sizing: Equal-Weight (1/N bei N gleichzeitigen Positionen)
+- Equity-Curve: Daily-Snapshots
+- Commission/Slippage: in P3 ignoriert (kommt in P4 risk)
+- Performance-Budget: 5 Jahre Daily < 30s (NFR-Perf-1)
+
+---
+
+## Slice 3.1 - Backtest Engine Core
+
+### US-P3.1 - Strategie auf historische Daten backtesten
+
+- **Als** Trader
+- **moechte ich** eine Strategie auf historische Bars anwenden und Trades automatisch ausfuehren lassen,
+- **damit** ich die Performance einer Strategie beurteilen kann.
+
+- **Priority:** Must
+- **Estimate:** M
+- **Acceptance Criteria (Gherkin):**
+  - **Given** eine registrierte Strategie und Bars aus dem Cache fuer den Zeitraum
+  - **When** ich den Backtest starte
+  - **Then** werden Signale der Strategie zu Trades: BUY -> Long-Position, SELL -> Close
+  - **And** BUY wird zum Open der naechsten Bar gefillt (Default), konfigurierbar via `--fill-mode same_close`
+  - **And** ohne Fill-Conflicts: bei zwei BUYS desselben Tickers hintereinander -> Position wird nur einmal aufgebaut
+  - **And** ohne Fill-Konflikt: SELL ohne offene Position -> no-op (kein Crash, Warn-Log)
+  - **And** die Engine loggt `backtest.start` und `backtest.complete` (Dauer, Bars, Trades)
+  - **And** laeuft in unter 30s fuer 5 Jahre Daily (NFR-Perf-1)
+
+- **Out of Scope:** Commission/Slippage (P4 risk); Limit-Orders (immer Market).
+
+### US-P3.2 - Equal-Weight Position-Sizing
+
+- **Als** Trader
+- **moechte ich**, dass bei mehreren gleichzeitigen Positionen das Kapital gleichmaessig aufgeteilt wird,
+- **damit** mein Portfolio diversifiziert ist (passt zu ETF-Rotation und Momentum top_n).
+
+- **Priority:** Must
+- **Estimate:** S
+- **Acceptance Criteria (Gherkin):**
+  - **Given** 100.000 USD Cash und 3 BUYS fuer A/B/C
+  - **When** die Engine die Trades verarbeitet
+  - **Then** wird A, B und C jeweils mit ca. 33.333 USD allokiert (integer Shares, Rest als Cash)
+  - **And** bei SELL eines Tickers wird der Erloes wieder Cash
+  - **And** eine neue BUY-Allokation nimmt die *verfuegbare* Cash-Position (RestCash nach vorherigen Allokationen)
+  - **And** bei 0 USD Cash: BUY wird uebersprungen, Warn-Log `backtest.insufficient_cash`
+
+- **Out of Scope:** Volatility-Adjustment, Risk-Parity (P4); Stop-Loss.
+
+---
+
+## Slice 3.2 - Metrics
+
+### US-P3.3 - Backtest-Metriken berechnen
+
+- **Als** Trader
+- **moechte ich** nach einem Backtest die wichtigsten Kennzahlen sehen,
+- **damit** ich die Strategie schnell bewerten kann.
+
+- **Priority:** Must
+- **Estimate:** S
+- **Acceptance Criteria (Gherkin):**
+  - **Given** ein abgeschlossener Backtest mit Equity-Curve und Trade-Liste
+  - **When** ich die Metriken abrufe
+  - **Then** erhalte ich: Total Return (%), CAGR (%), Sharpe Ratio (annualisiert, rf=0), Max Drawdown (%), Win-Rate (%), Anzahl Trades, Exposure (Anteil investiert, %)
+  - **And** CAGR und Sharpe basieren auf 252 Handelstagen/Jahr
+  - **And** Max Drawdown ist die groesste Spitze-zu-Tal-Periode
+  - **And** bei <2 Trades: Win-Rate = None, Sharpe = None, klare Markierung in der Ausgabe
+  - **And** Empty-Run (0 Trades): alle Metriken ausser Trade-Count = 0 oder NaN, klar markiert
+
+- **Out of Scope:** Sortino, Calmar, IR (kommen spaeter bei Bedarf); Trade-PnL-Distribution.
+
+---
+
+## Slice 3.3 - Report (Console + Plotly + JSON + Streamlit)
+
+### US-P3.4 - Backtest-Ergebnisse als Console-Tabelle
+
+- **Als** Trader
+- **moechte ich** die Metriken direkt in der Konsole sehen,
+- **damit** ich ohne File-Output eine schnelle Einschaetzung bekomme.
+
+- **Priority:** Must
+- **Estimate:** S
+- **Acceptance Criteria (Gherkin):**
+  - **Given** ein abgeschlossener Backtest
+  - **When** ich den Run im Terminal anzeige
+  - **Then** sehe ich eine formatierte Tabelle mit allen Metriken aus US-P3.3
+  - **And** darunter eine zweite Tabelle mit den Top-10 Trades (Einstieg, Ausstieg, P&L)
+  - **And** Ausgabe auf Deutsch, fixed-width Spalten, deterministisch (testbar)
+  - **And** bei Empty-Run: Tabelle zeigt "keine Trades" ohne Crash
+
+- **Out of Scope:** CSV-Export der Trades; Sort/Filter-UI (kommt mit Streamlit).
+
+### US-P3.5 - Equity-Curve als interaktives Plotly-HTML
+
+- **Als** Trader
+- **moechte ich** die Equity-Curve als interaktive HTML-Datei oeffnen koennen,
+- **damit** ich im Browser rein- und rauszoomen und einzelne Punkte inspizieren kann.
+
+- **Priority:** Should
+- **Estimate:** S
+- **Acceptance Criteria (Gherkin):**
+  - **Given** ein Backtest mit Equity-Curve (>=1 Snapshot)
+  - **When** ich den Report generiere
+  - **Then** wird `reports/<run-id>/equity_curve.html` erzeugt
+  - **And** die HTML enthaelt eine Plotly-Figure mit X=Date, Y=Equity
+  - **And** Hover zeigt Datum + Equity + Position-Snapshot (Cash, gehaltene Ticker)
+  - **And** bei Empty-Run: HTML enthaelt leere Figure mit Hinweis "Keine Trades"
+  - **And** Datei ist self-contained (Plotly-JS inline oder CDN)
+
+- **Out of Scope:** Drawdown-Chart in HTML (kommt spaeter optional); Vergleichs-Overlay mehrerer Runs.
+
+### US-P3.6 - Backtest als JSON exportieren
+
+- **Als** Trader
+- **moechte ich** die Backtest-Ergebnisse als JSON speichern,
+- **damit** ich sie programmatisch weiterverarbeiten oder mit anderen Tools analysieren kann.
+
+- **Priority:** Should
+- **Estimate:** S
+- **Acceptance Criteria (Gherkin):**
+  - **Given** ein abgeschlossener Backtest
+  - **When** ich den Run abschliesse
+  - **Then** wird `reports/<run-id>/result.json` erzeugt mit: strategy_name, params, start, end, fill_mode, initial_cash, final_equity, alle Metriken, equity_curve (Liste von {date, equity, cash, positions}), trades (Liste von {ticker, entry_date, entry_price, exit_date, exit_price, pnl, pnl_pct})
+  - **And** Schema ist stabil (typed; floats als Number, dates als ISO-String)
+  - **And** Pfad wird in `backtest.complete` Log geloggt
+
+- **Out of Scope:** Parquet-Export; CSV-Export.
+
+### US-P3.7 - Streamlit-Dashboard fuer Backtest-Vergleich
+
+- **Als** Trader
+- **moechte ich** im Browser durch vergangene Backtests browsen und Strategien vergleichen,
+- **damit** ich ohne Command-Line-Aufrufe die Ergebnisse erkunden kann.
+
+- **Priority:** Should
+- **Estimate:** M
+- **Acceptance Criteria (Gherkin):**
+  - **Given** das Streamlit-Extra ist installiert (`uv sync --extra ui`)
+  - **When** ich `streamlit run scripts/backtest_dashboard.py` starte
+  - **Then** oeffnet sich ein Browser-Fenster mit Sidebar (Strategie-Selector, Run-Selector)
+  - **And** Hauptbereich zeigt: Equity-Curve (Plotly), Metriken-Tabelle, Drawdown-Indicator, Top-Trades-Tabelle
+  - **And** ich kann zwischen verschiedenen Runs wechseln ohne Neustart
+  - **And** wenn `reports/` leer ist: freundlicher Hinweis "Noch keine Backtests gelaufen"
+  - **And** nur lesend (kein Button "Run Backtest" in der UI)
+
+- **Out of Scope:** Parameter-Sweep-UI; Run-Trigger-Button; User-Login.
+
+---
+
+## Slice 3.4 - Backtest CLI
+
+### US-P3.8 - Backtest ueber CLI starten
+
+- **Als** Trader
+- **moechte ich** einen Backtest per CLI-Aufruf starten koennen,
+- **damit** ich reproduzierbar dieselben Runs wiederholen kann.
+
+- **Priority:** Must
+- **Estimate:** S
+- **Acceptance Criteria (Gherkin):**
+  - **Given** ein gueltiger CLI-Aufruf
+  - **When** ich `python -m quant_trader.backtest run --strategy sma_cross --ticker SPY --start 2020-01-01 --end 2024-12-31` aufrufe
+  - **Then** laeuft der Backtest und produziert Console-Output (Metriken + Top-Trades, US-P3.4)
+  - **And** ohne `--no-report`: HTML (US-P3.5) + JSON (US-P3.6) werden unter `reports/<run-id>/` geschrieben
+  - **And** `--fill-mode next_open|same_close` waehlt Fill-Mode (default next_open)
+  - **And** `--initial-cash 50000` ueberschreibt Default
+  - **And** `--no-report` ueberspringt File-Output
+  - **And** Exit 0 bei Erfolg, 1 bei Fehler (Strategy/Universe/Cache fehlt)
+  - **And** `python -m quant_trader.backtest list` zeigt alle Backtests aus `reports/`
+
+- **Out of Scope:** Scheduler/Cron-Integration; Multi-Backtest-Batch in einem CLI-Call.
+
+---
+
+## Mapped NFRs (siehe docs/requirements/nfrs.md)
+
+| Story   | NFR-IDs                                                |
+|---------|---------------------------------------------------------|
+| US-P3.1 | NFR-Perf-1 (<30s), NFR-Obs-1 (Logs), NFR-Data-1 (Cache) |
+| US-P3.2 | NFR-Ux-1 (klare Logs: insufficient_cash)               |
+| US-P3.3 | NFR-Perf-1 (schnelle Metrik-Berechnung)                |
+| US-P3.4 | NFR-Ux-1 (deutsche Texte, klar)                        |
+| US-P3.5 | NFR-Data-2 (Adj. Close)                                |
+| US-P3.6 | NFR-Data-2                                              |
+| US-P3.7 | NFR-Ux-1                                               |
+| US-P3.8 | NFR-Ux-1, NFR-Obs-1                                   |
+
+---
+
+## Definition of Done (alle Stories)
+
+- [ ] BacktestEngine + Portfolio + Position-Sizer implementiert (3.1)
+- [ ] Metrics: Sharpe, CAGR, MDD, Win-Rate, Exposure (3.2)
+- [ ] Report: ConsoleFormatter, PlotlyExporter, JSONExporter, Streamlit-Dashboard (3.3)
+- [ ] CLI `python -m quant_trader.backtest {run,list}` (3.4)
+- [ ] Tests fuer Engine-Korrektheit, deterministische Metriken, Report-Roundtrip
+- [ ] `make test`, `make lint`, `make smoke` gruen
+- [ ] Conventional Commits, einer pro Slice
+- [ ] `docs/STATE.md` aktualisiert, Tag `p3-backtest` gesetzt
+- [ ] UML-Diagramme (Structure + Flow + Sequence + State Machine) APPROVED
