@@ -32,7 +32,7 @@ ID-Format: `NFR-<Kategorie>-<Nr>`. Kategorien:
 | NFR-Data-1    | Parquet-Cache mit Inkrement-Update (kein Full-Refetch bei Overlap) | P1 | APPROVED |
 | NFR-Data-2    | Adj. Close verwendet fuer Rueckrechnungen (Corporate Actions) | P1  | APPROVED |
 | NFR-Data-3    | Financial Modelling Prep (FMP) ist Primary Provider, Free-Tier (250 calls/Tag) | P1 | APPROVED |
-| NFR-Ops-1     | Lokale Entwicklung + spaeteres Docker-Deployment             | P7    | DRAFT    |
+| NFR-Ops-1     | Lokale Entwicklung + spaeteres Docker-Deployment             | P7    | APPROVED |
 
 ## Neue NFRs anlegen
 

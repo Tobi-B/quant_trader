@@ -42,7 +42,14 @@ mechanism is the TWS login.
   revoke any active API sessions, and re-authorise TWS. Audit the IBKR
   activity log for unauthorised trades.
 
+## Docker-Image
+
+- Das Dockerfile nutzt `env_file: .env` (docker-compose), NICHT
+  COPY einer .env-Datei.
+- `.dockerignore` schliesst `.env`, `.env.local`, `.env.example` aus.
+- Secrets bleiben auf dem Host, nicht im Image.
+
 ## Audit
 
 This policy is reviewed at every phase release (see `docs/STATE.md`).
-Last reviewed: 2026-07-14 (Slice 5.3, P5 Live-Trading).
+Last reviewed: 2026-07-14 (Slice 7.1, P7 Docker-Deployment).

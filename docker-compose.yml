@@ -1,0 +1,17 @@
+name: quant-trader
+
+services:
+  qtrader:
+    build: .
+    container_name: quant-trader
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./quant_trader.sqlite:/app/quant_trader.sqlite
+    ports:
+      - "8501:8501"
+    stdin_open: true
+    tty: true
+    command: ["streamlit", "run", "scripts/backtest_dashboard.py", "--server.address", "0.0.0.0"]

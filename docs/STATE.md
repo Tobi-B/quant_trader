@@ -8,13 +8,13 @@
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
 | Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | `2d4e307` feat(p5-live): slice 5.3 live resilience   |
+| Letzter Commit (main) | TBD (slice 7.1 commit)                              |
 | Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 434/434 gruen                                       |
+| Tests                 | 440/440 gruen (434 + 6 neue)                        |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P5 Live-Trading                                     |
-| Aktiver Slice         | Slice 5.3 (Live-Loop Resilience) - DONE             |
-| Open Decision         | Phase 7 (Docker-Deployment)                          |
+| Aktive Phase          | P7 Docker-Deployment                                |
+| Aktiver Slice         | Slice 7.1 (Docker-Deployment + CI/CD) - DONE        |
+| Open Decision         | - (Projekt komplett deployable)                     |
 
 ## Phasen-Tags (chronologisch)
 
@@ -40,6 +40,7 @@
 | `p5-live/5.1`        | Broker Interface + Mock + Order (Foundation) | 2026-07-14 | abgeschlossen |
 | `p5-live/5.2`        | Live-Loop + Trade-Journal + Live-CLI | 2026-07-14 | abgeschlossen |
 | `p5-live/5.3`        | Auto-Reconnect + Tageszusammenfassung + Credentials | 2026-07-14 | abgeschlossen |
+| `p7-ops/7.1`         | Docker-Deployment (Multi-Stage + Compose + CI/CD)   | 2026-07-14 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -210,6 +211,24 @@
   `docs/SECURITY.md` (NEU) zentrale Credentials-Policy + Incident-Response.
   17 neue Tests (Journal 3, Loop 9, Summary 5). 434/434 gruen; ruff + mypy
   --strict clean. ADR-0013 akzeptiert; Tag `p5-live/5.3`.
+- **Phase 7 DONE**: Slice 7.1 schliesst Phase 7 (Docker-Deployment) ab.
+  Multi-Stage-`Dockerfile` (`python:3.12-slim` als builder + runtime,
+  final-Image < 500 MB-Ziel) plus `.dockerignore` schliesst Caches,
+  `.venv`, `data/`, `reports/`, `.git/`, `tests/`, `.env` aus. Volumes
+  fuer `data/`, `reports/`, `quant_trader.sqlite` bleiben auf dem Host
+  persistent. `env_file: .env` mounted Secrets zur Laufzeit, ohne sie
+  ins Image zu brennen (NFR-Sec-1 erfuellt). `docker-compose.yml` mit
+  Service `qtrader`, `stdin_open: true`/`tty: true` fuer interaktive
+  CLI via `docker compose exec qtrader python -m quant_trader.backtest
+  ...`. `scripts/entrypoint.sh` akzeptiert CLI-Args, default Streamlit.
+  `.github/workflows/ci.yml` (NEU): Jobs `test` (ruff check + format
+  check + mypy + pytest ohne live/slow) und `docker` (verifiziert
+  `docker build .`, kein Push zu Registry). `docs/SECURITY.md`
+  erweitert um Docker-Image-Sektion. 6 neue Tests
+  (`tests/ops/`: Dockerfile, dockerignore, compose, CI-Workflow parsen
+  + Strukturpruefungen, ohne Docker-Engine). 440/440 gruen; ruff +
+  ruff-format + mypy --strict clean. ADR-0014 akzeptiert; Tag
+  `p7-ops/7.1`.
 
 ## Was offen ist
 
@@ -219,8 +238,10 @@
 | Phase 5 Slice 5.2 (Live Loop + Journal + CLI)       | DONE    | Tag `p5-live/5.2`                   |
 | Phase 5 Slice 5.3 (Auto-Reconnect + Summary + Credentials) | DONE | Tag `p5-live/5.3`               |
 | Phase 5 als Ganzes                                | DONE    | ADR-0013 accepted                   |
-| Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | Nach Phase 5                          |
-| Phase 7 (Docker-Deployment)                    | spaeter    | Naechster Schritt nach Phase 5       |
+| Phase 7 Slice 7.1 (Docker-Deployment + CI/CD)   | DONE      | Tag `p7-ops/7.1`                    |
+| Phase 7 als Ganzes                               | DONE      | ADR-0014 accepted                   |
+| Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | optional nach Phase 7                |
+| Phase 8+ (Cloud-Deployment, Production-Hardening) | spaeter | YAGNI fuer persoenlichen Use-Case |
 
 ## Repo-Layout zum Wiederfinden
 
@@ -228,10 +249,10 @@
 docs/STATE.md                       <- diese Datei
 docs/00_dev_workflow.md             <- Loop-Regeln (DE)
 docs/architecture.md                <- Layered-Overview, Module-Tabelle, Datenfluss
-docs/requirements/nfrs.md           <- 13 NFRs mit IDs
-docs/adr/                           <- 9 Architecture Decision Records (0001-0009)
-docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1 ausgearbeitet)
-docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1+P2)
+docs/requirements/nfrs.md           <- 14 NFRs mit IDs
+docs/adr/                           <- 14 Architecture Decision Records (0001-0014)
+docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1-P7/7.1)
+docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1-P7)
 docs/uml/<phase>/<slice>.md         <- Mermaid (3 Typen, + State Machine bei Bedarf)
 src/quant_trader/
   core/        types, errors, config, logging
@@ -244,7 +265,10 @@ live/          Broker + Realtime-Bar-Quellen + async LiveLoop + SQLite-Journal +
 storage/       SQLite (Trade-Journal lebt in live/journal.py)
 config/universe_presets.yaml
 config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
-tests/         434 Tests, marker slow/live/integration
+Dockerfile + docker-compose.yml + .dockerignore (NEU P7)
+.github/workflows/ci.yml (CI mit test + docker jobs, NEU P7)
+scripts/entrypoint.sh (NEU P7)
+tests/         440 Tests, marker slow/live/integration; tests/ops/ fuer Deployment
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)

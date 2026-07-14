@@ -1,6 +1,6 @@
 # ADR 0014: Docker-Deployment-Architektur (Multi-Stage + Compose + CI)
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-14
 Phase:      P7 Docker-Deployment
 Supersedes: -
