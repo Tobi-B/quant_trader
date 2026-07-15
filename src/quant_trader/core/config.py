@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     universe_presets_path: Path = Path("./config/universe_presets.yaml")
     strategies_config_path: Path = Path("./config/strategies.yaml")
+    strategy_docs_dir: Path = Path("./docs/strategies")
     db_path: Path = Path("./quant_trader.sqlite")
     log_level: str = "INFO"
     alphavantage_key: str = ""

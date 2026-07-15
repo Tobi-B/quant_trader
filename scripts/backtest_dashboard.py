@@ -52,7 +52,8 @@ from quant_trader.core.types import Granularity
 from quant_trader.data.cache import ParquetCache
 from quant_trader.data.factory import build_chain
 from quant_trader.data.refresh import RefreshSummary, refresh_tickers
-from quant_trader.strategies import default_loader
+from quant_trader.strategies import StrategyDocLoader, default_loader
+from quant_trader.strategies.loader import StrategyLoader
 from quant_trader.universe.presets import PresetRepository
 
 if TYPE_CHECKING:
@@ -66,6 +67,7 @@ _RUN_FORM_TAB = "Run-Form"
 _READ_MODE_TAB = "Read-Mode"
 _COMPARISON_TAB = "Vergleich"
 _CACHE_TAB = "Cache"
+_STRATEGIES_TAB = "Strategien"
 _CACHE_MODE_ALL = "Alle gecachten Tickers"
 _CACHE_MODE_UNIVERSE = "Universe"
 _CACHE_MODE_TICKERS = "Ticker-Liste"
@@ -445,6 +447,52 @@ def _render_summary_details(summary: RefreshSummary) -> None:
     st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
 
 
+def _render_strategies_tab(doc_loader: StrategyDocLoader, strategy_loader: StrategyLoader) -> None:
+    """Render the "Strategien" tab: per-strategy README + default params."""
+    names = strategy_loader.registered_names()
+    st.subheader("Registrierte Strategien")
+    st.caption(
+        "Ausfuehrliche Erklaerung jeder registrierten Strategie auf Basis "
+        "der README-Dateien unter docs/strategies/."
+    )
+    if names:
+        st.selectbox(
+            "Springe zu Strategie",
+            options=names,
+            key="strategies_jump_to",
+            index=0,
+        )
+    if not names:
+        st.info("Keine Strategien registriert")
+        log.info("dashboard.strategies.rendered", count=0, documented=0)
+        return
+
+    documented = 0
+    for name in names:
+        cls = strategy_loader._registry[name]
+        version = getattr(cls, "version", "1.0.0")
+        st.subheader(f"{name} (v{version})")
+        doc = doc_loader.load(name)
+        if doc is None:
+            st.warning(
+                f"Keine Doku vorhanden fuer '{name}'. Bitte erstelle docs/strategies/{name}.md"
+            )
+        else:
+            st.markdown(doc)
+            documented += 1
+        params = cls.default_params
+        if params:
+            records = [{"Parameter": key, "Default": value} for key, value in params.items()]
+            st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
+        else:
+            st.caption("Keine Parameter")
+    log.info(
+        "dashboard.strategies.rendered",
+        count=len(names),
+        documented=documented,
+    )
+
+
 def _render_cache_tab(cache: ParquetCache, provider: DataProvider, preset_names: list[str]) -> None:
     st.subheader("Cache aktualisieren")
     today = date.today()
@@ -570,8 +618,14 @@ def main() -> None:
 
     report_loader, runner, strategy_names, preset_names = _build_services()
     cache, provider, cache_preset_names = _build_cache_services()
-    tab_labels = [_RUN_FORM_TAB, _READ_MODE_TAB, _COMPARISON_TAB, _CACHE_TAB]
-    tab_run, tab_read, tab_comparison, tab_cache = st.tabs(
+    tab_labels = [
+        _RUN_FORM_TAB,
+        _READ_MODE_TAB,
+        _COMPARISON_TAB,
+        _CACHE_TAB,
+        _STRATEGIES_TAB,
+    ]
+    tab_run, tab_read, tab_comparison, tab_cache, tab_strategies = st.tabs(
         tab_labels,
         default=_tab_default(tab_labels),
         key="tabs",
@@ -584,6 +638,9 @@ def main() -> None:
         _render_comparison(report_loader, strategy_names)
     with tab_cache:
         _render_cache_tab(cache, provider, cache_preset_names)
+    with tab_strategies:
+        doc_loader = StrategyDocLoader(get_settings().strategy_docs_dir)
+        _render_strategies_tab(doc_loader, default_loader())
 
 
 if __name__ == "__main__":

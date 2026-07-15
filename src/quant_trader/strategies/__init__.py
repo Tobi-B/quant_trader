@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from quant_trader.strategies.base import MultiTickerStrategyBase, StrategyBase
+from quant_trader.strategies.docs import StrategyDocLoader
 from quant_trader.strategies.errors import (
     StrategyConfigError,
     StrategyError,
@@ -30,6 +31,7 @@ __all__ = [
     "StrategyBase",
     "StrategyConfig",
     "StrategyConfigError",
+    "StrategyDocLoader",
     "StrategyError",
     "StrategyLoader",
     "UnknownStrategyError",

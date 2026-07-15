@@ -42,6 +42,7 @@
 | `p5-live/5.3`        | Auto-Reconnect + Tageszusammenfassung + Credentials | 2026-07-14 | abgeschlossen |
 | `p7-ops/7.1`         | Docker-Deployment (Multi-Stage + Compose + CI/CD)   | 2026-07-14 | abgeschlossen |
 | `p1-data/1.6`        | Cache Refresh (Bulk + Inkrementell + Dashboard-UI) | 2026-07-15 | abgeschlossen |
+| `p2-strategies/2.6` | Strategy Documentation Viewer (README + Dashboard-Tab) | 2026-07-15 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -254,6 +255,24 @@
   refresh-Cases, `test_cache.py` +6 fuer `covers_range`/
   `list_cached_tickers`). 479/479 gruen; ruff + ruff-format + mypy
   --strict clean. ADR-0015 akzeptiert; Tag `p1-data/1.6`.
+- **Slice 2.6 DONE**: Strategy Documentation Viewer. Jede registrierte
+  Strategie (sma_cross, momentum, rsi_mean_reversion, etf_rotation)
+  bekommt eine ausfuehrliche deutsche Markdown-README unter
+  `docs/strategies/<name>.md` (Sections: Was?, Wann BUY/SELL?,
+  Parameter, Risiken, Beispiel-Signal). `StrategyDocLoader` in
+  `strategies/docs.py` mit `load`/`list_documented`/`has_doc` (Pfad
+  wird relativ zum Projekt-Root aufgeloest, falls nicht absolut).
+  `Settings.strategy_docs_dir: Path = Path("./docs/strategies")`.
+  `scripts/backtest_dashboard.py` hat einen fuenften Tab "Strategien"
+  mit `selectbox("Springe zu Strategie")`, pro Strategie `subheader`
+  + `markdown(doc)` + `dataframe(default_params.items)`; fehlende
+  Doku fuehrt zu `st.warning("Keine Doku vorhanden fuer X ...")`.
+  Strukturiertes Logging `dashboard.strategies.rendered` mit
+  `count` + `documented`. 26 neue Tests
+  (`test_docs_loader.py` 16, `test_strategy_docs_settings.py` 3,
+  `test_dashboard_strategy_tab.py` 7). 505/505 gruen; ruff +
+  ruff-format + mypy --strict clean. ADR-0016 akzeptiert; Tag
+  `p2-strategies/2.6`.
 
 ## Was offen ist
 
@@ -266,6 +285,7 @@
 | Phase 7 Slice 7.1 (Docker-Deployment + CI/CD)   | DONE      | Tag `p7-ops/7.1`                    |
 | Phase 7 als Ganzes                               | DONE      | ADR-0014 accepted                   |
 | Phase 1 Slice 1.6 (Cache Refresh)               | DONE      | Tag `p1-data/1.6`                   |
+| Phase 2 Slice 2.6 (Strategy Docs Viewer)       | DONE      | Tag `p2-strategies/2.6`             |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | optional nach Phase 7                |
 | Phase 8+ (Cloud-Deployment, Production-Hardening) | spaeter | YAGNI fuer persoenlichen Use-Case |
 

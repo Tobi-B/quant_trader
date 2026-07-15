@@ -1,6 +1,6 @@
 # ADR 0016: Strategy Documentation Viewer (README pro Strategie + Dashboard)
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-15
 Phase:      P2 Strategien (Erweiterung)
 Supersedes: -
