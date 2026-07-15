@@ -1,7 +1,8 @@
 # Phase 1 - Datenlayer: User Stories
 
 Phase:    P1 Datenlayer
-Status:   APPROVED (Story-Set am 2026-07-08)
+Status:   US-P1.1 bis US-P1.7 APPROVED (2026-07-08)
+          US-P1.8, US-P1.9 DRAFT (Slice 1.6, wartet auf User-Approval)
 Persona:  Tobias (privater Einsteiger-Trader)
 Quelle:   Interview am 2026-07-08
 
@@ -107,6 +108,72 @@ Nutzer-zentriert: das "Was & Warum", nicht das "Wie".
 
 ---
 
+## Slice 1.6 - Cache Refresh (Bulk + Inkrementell + UI)
+
+Erweitert Slice 1.2 (Parquet-Cache) um einen Bulk-Refresh-Mechanismus
+mit Streamlit-Dashboard-UI und implementiert NFR-Data-1 (Inkrement-Update)
+vollstaendig.
+
+### US-P1.8 - Inkrement-Update: nur fehlende Bars nachladen
+
+- **Als** Trader
+- **moechte ich**, dass ein erneuter Data-Fetch nur die Bars nachlaedt,
+  die noch nicht im Cache sind (z.B. wenn der Cache bis Gestern geht
+  und heute neue Bars hinzukommen),
+- **damit** ich nicht jedes Mal den kompletten Datenbestand neu
+  fetchen muss (Performance, Quota-Schonung).
+
+- **Priority:** Must
+- **Estimate:** M
+- **Acceptance Criteria (Gherkin):**
+  - **Given** ein Parquet-Cache fuer SPY mit Bars bis 2024-06-28
+  - **When** ich `python -m quant_trader.data SPY --start 2024-06-29 --end 2024-12-31` aufrufe
+  - **Then** werden nur die fehlenden ~125 Bars gefetcht (nicht die 124 bereits gecachten)
+  - **And** der Cache enthaelt nach dem Update alle Bars von 2020-01-01 bis 2024-12-31 (alter + neuer Bereich)
+  - **And** die Provider-Kette wird nur einmal aufgerufen (fuer den neuen Bereich), nicht fuer alte Bars
+  - **And** falls der Provider-Fetch fehlschlaegt, bleibt der alte Cache unveraendert (kein partiel-ler Cache)
+
+- **Out of Scope:** Bar-Level-Deduplication zwischen Quellen (z.B. wenn
+  alter Cache Bars schon hat die der neue Fetch auch liefert), Schema-
+  Migration bei Cache-Aenderungen, Cross-Granularity-Merge.
+
+### US-P1.9 - Cache-Refresh-Button im Streamlit Dashboard
+
+- **Als** Trader
+- **moechte ich** im Streamlit-Dashboard einen "Cache aktualisieren"-
+  Button mit drei Optionen (alle gecachten Tickers, alle Tickers in
+  einem Universe, freie Ticker-Liste) und visueller Progress-Anzeige,
+- **damit** ich nicht fuer jeden Ticker einzeln
+  `python -m quant_trader.data TICKER` aufrufen muss und immer
+  aktuelle Daten habe.
+
+- **Priority:** Should
+- **Estimate:** M
+- **Acceptance Criteria (Gherkin):**
+  - **Given** das Streamlit-Dashboard ist offen
+  - **When** ich auf den Tab "Cache" oder die Sidebar-Sektion "Cache
+    verwalten" klicke
+  - **Then** sehe ich drei Optionen: "Alle gecachten Tickers",
+    "Universe (Dropdown)", "Ticker-Liste (Text-Input)"
+  - **And** ein Button "Refresh starten" startet den Refresh
+  - **And** waehrend des Refreshs sehe ich einen Progress-Bar
+    (z.B. `st.progress(0.5)`) und einen Live-Log-Stream
+  - **And** nach Abschluss eine Summary: X Tickers refreshed, Y neu,
+    Z unverändert (Cache-Hit), Duration, Errors
+  - **And** die Daten aller gecachten/gewählten Tickers werden via
+    Inkrement-Update (US-P1.8) aktualisiert, NICHT full re-fetched
+  - **And** bei Fehler (Provider-Fehler): pro Ticker ein deutscher
+    Hinweis im UI statt Crash, andere Tickers laufen weiter
+  - **And** der Refresh nutzt die existierende Provider-Chain
+    (FMP → YFinance → StockData → AlphaVantage, ADR-0009)
+
+- **Out of Scope:** Auto-Refresh (Cron, Scheduled, beim Backtest-Start),
+  Refresh-Status-Anzeige (welche Tickers sind stale), parallele
+  Refresh-Workers (sequentiell reicht fuer persoenlichen Use-Case),
+  Refresh-Logs persistent.
+
+---
+
 ## Slice 1.3 - Intraday-Support
 
 ### US-P1.5 - Intraday-Daten (Stunden oder Minuten) optional laden
@@ -139,6 +206,8 @@ Nutzer-zentriert: das "Was & Warum", nicht das "Wie".
 | US-P1.4 | NFR-Rel-1, NFR-Obs-1                           |
 | US-P1.5 | NFR-Perf-2, NFR-Data-1                         |
 | US-P1.6 | NFR-Ux-1                                      |
+| US-P1.8 | NFR-Data-1 (Inkrement-Update), NFR-Perf-2       |
+| US-P1.9 | NFR-Ux-1 (deutsche UI-Texte), NFR-Obs-1         |
 
 ---
 
