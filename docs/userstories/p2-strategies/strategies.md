@@ -1,12 +1,10 @@
 # Phase 2 - Strategien: User Stories
 
 Phase:    P2 Strategien
-Status:   APPROVED  (2026-07-10, US-P2.1 + US-P2.2 fuer Slice 2.1,
-                    US-P2.3 + US-P2.4 fuer Slice 2.2,
-                    US-P2.5 fuer Slice 2.3,
-                    US-P2.6 fuer Slice 2.4 freigegeben)
+Status:   US-P2.1 bis US-P2.6 APPROVED (2026-07-10)
+          US-P2.8 DRAFT (Slice 2.6, wartet auf User-Approval)
 Persona:  Tobias (privater Einsteiger-Trader)
-Quelle:   Interview am 2026-07-08
+Quelle:   Interview am 2026-07-08 + Erweiterung 2026-07-15 (Strategy Docs)
 
 Konvention: jede Story folgt INVEST + MoSCoW + T-Shirt-Size + Gherkin.
 Nutzer-zentriert: das "Was & Warum", nicht das "Wie".
@@ -160,6 +158,47 @@ werden. Strategien sind aber bereits isoliert testbar (Smoke-CLI in Slice 2.5).
 
 - **Out of Scope:** Signal-Backtest mit P&L (Phase 3); Equity-Curve (Phase 3).
 
+### US-P2.8 - Strategie-Doku im Dashboard abrufbar
+
+- **Als** Trader
+- **moechte ich** im Streamlit-Dashboard eine neue Sektion "Strategien"
+  sehen, in der jede registrierte Strategie (z.B. sma_cross, momentum,
+  rsi_mean_reversion, etf_rotation) mit einer ausfuehrlichen
+  Erklaerung ihrer Funktionsweise angezeigt wird,
+- **damit** ich als Anfaenger verstehe, was jede Strategie macht,
+  welche Parameter sie hat und wann sie Signale generiert, ohne den
+  Python-Code lesen zu muessen.
+
+- **Priority:** Should
+- **Estimate:** M
+- **Acceptance Criteria (Gherkin):**
+  - **Given** das Streamlit-Dashboard ist geoeffnet
+  - **When** ich auf den Tab "Strategien" wechsle
+  - **Then** sehe ich fuer jede registrierte Strategie (aus
+    `StrategyLoader.registered_names()`) eine separate `st.expander`
+    oder Card mit:
+    - Strategie-Name + Version (aus `cls.version`)
+    - Markdown-README-Inhalt (mehrere Absaetze mit sections,
+      Markdown-Formatierung)
+    - Default-Parameter (`default_params`) als Tabelle
+    - Required/Optional-Parameter mit Beschreibung
+  - **And** jede README enthaelt mindestens: Was macht die Strategie?
+    Wann generiert sie BUY/SELL? Welche Annahmen trifft sie?
+    Welche Risiken hat sie?
+  - **And** die README-Texte liegen als `.md`-Dateien unter
+    `docs/strategies/<strategy-name>.md` (Convention: ein File pro
+    Strategie)
+  - **And** wenn eine README-Datei fehlt: `st.warning("Keine Doku
+    vorhanden fuer X")` + Anweisung wie man die Doku hinzufuegt
+  - **And** die Inhalte sind auf Deutsch geschrieben (NFR-Ux-1)
+  - **And** es gibt eine "Alle anzeigen / Eine auswaehlen"-Toggle
+
+- **Out of Scope:** Englische README-Variante, automatische
+  Code-Generierung aus Docstrings, Live-Edit im Dashboard, API-Doku
+  fuer `StrategyBase`, Performance-Tests der Strategien, Backtest-
+  Beispiele mit echten Daten, Vergleich zwischen Strategien,
+  Versionierung der Docs ueber Git-Tags.
+
 ---
 
 ## Mapped NFRs (siehe docs/requirements/nfrs.md)
@@ -173,6 +212,7 @@ werden. Strategien sind aber bereits isoliert testbar (Smoke-CLI in Slice 2.5).
 | US-P2.5 | NFR-Perf-2                                      |
 | US-P2.6 | NFR-Perf-2                                      |
 | US-P2.7 | NFR-Obs-1 (Logs), NFR-Data-1 (Cache-Nutzung)    |
+| US-P2.8 | NFR-Ux-1 (deutsche Strategie-Doku), NFR-Obs-1   |
 
 ---
 
