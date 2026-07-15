@@ -9,6 +9,8 @@ Tabs:
   under the form in the same tab.
 - "Read-Mode" (US-P3.7): browse past backtest reports from `reports/`.
 - "Vergleich" (US-P3.10): compare the latest report for every registered strategy.
+- "Cache" (US-P1.9): bulk refresh the parquet cache (alle gecachten Tickers,
+  Universe-Preset, freie Ticker-Liste).
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -45,9 +48,15 @@ from quant_trader.backtest.report import BacktestReport, ReportLoader
 from quant_trader.backtest.types import BacktestResult
 from quant_trader.core.config import get_settings
 from quant_trader.core.logging import configure_logging, get_logger
+from quant_trader.core.types import Granularity
 from quant_trader.data.cache import ParquetCache
+from quant_trader.data.factory import build_chain
+from quant_trader.data.refresh import RefreshSummary, refresh_tickers
 from quant_trader.strategies import default_loader
 from quant_trader.universe.presets import PresetRepository
+
+if TYPE_CHECKING:
+    from quant_trader.data.provider import DataProvider
 
 log = get_logger(__name__)
 
@@ -56,6 +65,11 @@ _CUSTOM_TICKER_OPTION = "(Custom-Ticker)"
 _RUN_FORM_TAB = "Run-Form"
 _READ_MODE_TAB = "Read-Mode"
 _COMPARISON_TAB = "Vergleich"
+_CACHE_TAB = "Cache"
+_CACHE_MODE_ALL = "Alle gecachten Tickers"
+_CACHE_MODE_UNIVERSE = "Universe"
+_CACHE_MODE_TICKERS = "Ticker-Liste"
+_CACHE_MODES = [_CACHE_MODE_ALL, _CACHE_MODE_UNIVERSE, _CACHE_MODE_TICKERS]
 
 
 def _reports_dir() -> Path:
@@ -389,6 +403,165 @@ def _tab_default(tab_labels: list[str]) -> str | None:
     return tab_labels[requested_index]
 
 
+def _build_cache_services() -> tuple[ParquetCache, DataProvider, list[str]]:
+    settings = get_settings()
+    cache = ParquetCache(settings.data_dir)
+    provider = build_chain(settings)
+    preset_repo = PresetRepository(settings.universe_presets_path)
+    return cache, provider, preset_repo.names()
+
+
+def _resolve_tickers(
+    mode: str,
+    universe_input: str,
+    ticker_input: str,
+    cache: ParquetCache,
+    preset_names: list[str],
+) -> list[str]:
+    if mode == _CACHE_MODE_ALL:
+        return list(cache.list_cached_tickers(Granularity.DAILY))
+    if mode == _CACHE_MODE_UNIVERSE:
+        settings = get_settings()
+        preset = PresetRepository(settings.universe_presets_path).get(universe_input)
+        return [t.upper() for t in preset.tickers]
+    return [t.strip().upper() for t in ticker_input.split(",") if t.strip()]
+
+
+def _render_summary_details(summary: RefreshSummary) -> None:
+    if not summary.details:
+        st.info("Keine Tickers verarbeitet.")
+        return
+    records: list[dict[str, str | float]] = []
+    for detail in summary.details:
+        records.append(
+            {
+                "Ticker": detail.ticker,
+                "Status": detail.status,
+                "Bars hinzugefuegt": detail.bars_added,
+                "Fehler": detail.error_message or "",
+                "Dauer (s)": round(detail.duration_seconds, 3),
+            }
+        )
+    st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
+
+
+def _render_cache_tab(cache: ParquetCache, provider: DataProvider, preset_names: list[str]) -> None:
+    st.subheader("Cache aktualisieren")
+    today = date.today()
+    default_start = today - timedelta(days=365 * 10)
+
+    with st.form(key="cache_refresh_form"):
+        mode = st.radio(
+            "Modus",
+            _CACHE_MODES,
+            index=0,
+            key="cache_mode",
+        )
+        universe_input = ""
+        if mode == _CACHE_MODE_UNIVERSE:
+            if preset_names:
+                universe_input = st.selectbox("Universe-Preset", preset_names, key="cache_universe")
+            else:
+                st.warning("Keine Universe-Presets gefunden.")
+                universe_input = ""
+        ticker_input = ""
+        if mode == _CACHE_MODE_TICKERS:
+            ticker_input = st.text_input(
+                "Ticker (Komma-getrennt)",
+                value="SPY,AGG",
+                key="cache_tickers",
+            )
+        start = st.date_input("Start-Datum", value=default_start, key="cache_start")
+        end = st.date_input("End-Datum", value=today, key="cache_end")
+        submitted = st.form_submit_button(
+            "Refresh starten",
+            type="primary",
+            disabled=bool(st.session_state.get("cache_refreshing", False)),
+        )
+
+    if not submitted:
+        return
+
+    if start >= end:
+        st.error("Start-Datum muss vor End-Datum liegen.")
+        return
+
+    tickers = _resolve_tickers(mode, universe_input, ticker_input, cache, preset_names)
+    if not tickers:
+        st.warning("Keine Ticker fuer den gewaehlten Modus gefunden.")
+        return
+
+    st.session_state["cache_refreshing"] = True
+    progress = st.progress(0.0, text="Starte Refresh...")
+    log_placeholder = st.empty()
+    progress_lines: list[str] = []
+
+    def _emit(text: str) -> None:
+        progress_lines.append(text)
+        log_placeholder.code("\n".join(progress_lines[-10:]), language="text")
+
+    total = len(tickers)
+    details: list = []
+    for index, ticker in enumerate(tickers, start=1):
+        progress.progress(
+            (index - 1) / total,
+            text=f"({index - 1}/{total}) {ticker}",
+        )
+        _emit(f"-> {ticker}: fetch startet")
+        try:
+            partial = refresh_tickers(
+                [ticker],
+                cache,
+                provider,
+                Granularity.DAILY,
+                start=start,
+                end=end,
+            )
+            details.extend(partial.details)
+            for detail in partial.details:
+                if detail.status == "error":
+                    st.error(f"{detail.ticker}: {detail.error_message}")
+                    _emit(f"!! {detail.ticker}: {detail.error_message}")
+                else:
+                    _emit(
+                        f"OK {detail.ticker}: {detail.status} (+{detail.bars_added}) "
+                        f"in {detail.duration_seconds:.2f}s"
+                    )
+        except Exception as exc:
+            log.exception("data.refresh.dashboard_error", ticker=ticker, error=str(exc))
+            st.error(f"{ticker}: {exc}")
+            _emit(f"!! {ticker}: {exc}")
+        progress.progress(index / total, text=f"({index}/{total}) {ticker} fertig")
+
+    progress.progress(1.0, text="Refresh abgeschlossen")
+    st.session_state["cache_refreshing"] = False
+
+    updated = sum(1 for d in details if d.status == "updated")
+    unchanged = sum(1 for d in details if d.status == "unchanged")
+    errors = sum(1 for d in details if d.status == "error")
+    duration = sum(d.duration_seconds for d in details)
+    summary = RefreshSummary(
+        total=len(details),
+        updated=updated,
+        unchanged=unchanged,
+        errors=errors,
+        duration_seconds=duration,
+        details=details,
+    )
+    log.info(
+        "data.refresh.complete",
+        total=summary.total,
+        updated=summary.updated,
+        unchanged=summary.unchanged,
+        errors=summary.errors,
+        duration_s=round(summary.duration_seconds, 3),
+    )
+    st.success(
+        f"{updated} aktualisiert, {unchanged} unveraendert, {errors} Fehler in {duration:.1f}s"
+    )
+    _render_summary_details(summary)
+
+
 def main() -> None:
     configure_logging("INFO")
     _reports_dir()
@@ -396,8 +569,9 @@ def main() -> None:
     st.title("QuantTrader - Backtest Dashboard")
 
     report_loader, runner, strategy_names, preset_names = _build_services()
-    tab_labels = [_RUN_FORM_TAB, _READ_MODE_TAB, _COMPARISON_TAB]
-    tab_run, tab_read, tab_comparison = st.tabs(
+    cache, provider, cache_preset_names = _build_cache_services()
+    tab_labels = [_RUN_FORM_TAB, _READ_MODE_TAB, _COMPARISON_TAB, _CACHE_TAB]
+    tab_run, tab_read, tab_comparison, tab_cache = st.tabs(
         tab_labels,
         default=_tab_default(tab_labels),
         key="tabs",
@@ -408,6 +582,8 @@ def main() -> None:
         _render_read_mode(report_loader)
     with tab_comparison:
         _render_comparison(report_loader, strategy_names)
+    with tab_cache:
+        _render_cache_tab(cache, provider, cache_preset_names)
 
 
 if __name__ == "__main__":

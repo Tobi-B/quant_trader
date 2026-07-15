@@ -84,3 +84,93 @@ def test_cli_unknown_ticker_returns_1(isolated: Path, monkeypatch: pytest.Monkey
     rc = main(["ZZZZZ", "--start", "2024-01-02", "--end", "2024-01-05"])
 
     assert rc == 1
+
+
+def test_cli_refresh_with_tickers(isolated: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import datetime
+
+    from quant_trader.core.types import Bar
+
+    class _StubProvider:
+        name = "stub"
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def fetch(self, ticker: str, start: Any, end: Any, granularity: Any) -> list[Bar]:
+            self.calls.append(ticker)
+            return [
+                Bar(
+                    timestamp=datetime(2024, 1, 2, 16, 0),
+                    open=1.0,
+                    high=2.0,
+                    low=0.5,
+                    close=1.5,
+                    adjusted_close=1.5,
+                    volume=100,
+                )
+            ]
+
+    stub = _StubProvider()
+    monkeypatch.setattr("quant_trader.data.cli.build_chain", lambda settings: stub)
+
+    rc = main(["refresh", "--tickers", "SPY,AGG", "--start", "2024-01-02", "--end", "2024-01-05"])
+
+    assert rc == 0
+    assert sorted(stub.calls) == ["AGG", "SPY"]
+
+
+def test_cli_refresh_with_universe(isolated: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import datetime
+
+    from quant_trader.core.types import Bar
+
+    class _StubProvider:
+        name = "stub"
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def fetch(self, ticker: str, start: Any, end: Any, granularity: Any) -> list[Bar]:
+            self.calls.append(ticker)
+            return [
+                Bar(
+                    timestamp=datetime(2024, 1, 2, 16, 0),
+                    open=1.0,
+                    high=2.0,
+                    low=0.5,
+                    close=1.5,
+                    adjusted_close=1.5,
+                    volume=100,
+                )
+            ]
+
+    stub = _StubProvider()
+    monkeypatch.setattr("quant_trader.data.cli.build_chain", lambda settings: stub)
+
+    rc = main(["refresh", "--universe", "etfs", "--start", "2024-01-02", "--end", "2024-01-05"])
+
+    assert rc == 0
+    assert sorted(stub.calls) == ["SPY", "VOO"]
+
+
+def test_cli_refresh_unknown_universe_returns_1(isolated: Path) -> None:
+    rc = main(["refresh", "--universe", "does-not-exist"])
+    assert rc == 1
+
+
+def test_cli_refresh_with_provider_error_returns_1(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from quant_trader.core.errors import TickerNotFoundError
+
+    class _FailProvider:
+        name = "fail"
+
+        def fetch(self, *args: object, **kwargs: object) -> list[Any]:
+            raise TickerNotFoundError("ZZZZZ")
+
+    monkeypatch.setattr("quant_trader.data.cli.build_chain", lambda settings: _FailProvider())
+
+    rc = main(["refresh", "--tickers", "ZZZZZ", "--start", "2024-01-02", "--end", "2024-01-05"])
+    assert rc == 1

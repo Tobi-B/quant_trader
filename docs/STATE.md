@@ -7,14 +7,14 @@
 
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
-| Datum                 | 2026-07-14                                          |
-| Letzter Commit (main) | TBD (slice 7.1 commit)                              |
+| Datum                 | 2026-07-15                                          |
+| Letzter Commit (main) | TBD (slice 1.6 commit)                              |
 | Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 440/440 gruen (434 + 6 neue)                        |
+| Tests                 | 479/479 gruen (440 + 39 neue)                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P7 Docker-Deployment                                |
-| Aktiver Slice         | Slice 7.1 (Docker-Deployment + CI/CD) - DONE        |
-| Open Decision         | - (Projekt komplett deployable)                     |
+| Aktive Phase          | P1 Datenlayer (Erweiterung)                         |
+| Aktiver Slice         | Slice 1.6 (Cache Refresh) - DONE                    |
+| Open Decision         | - (NFR-Data-1 vollstaendig implementiert)           |
 
 ## Phasen-Tags (chronologisch)
 
@@ -41,6 +41,7 @@
 | `p5-live/5.2`        | Live-Loop + Trade-Journal + Live-CLI | 2026-07-14 | abgeschlossen |
 | `p5-live/5.3`        | Auto-Reconnect + Tageszusammenfassung + Credentials | 2026-07-14 | abgeschlossen |
 | `p7-ops/7.1`         | Docker-Deployment (Multi-Stage + Compose + CI/CD)   | 2026-07-14 | abgeschlossen |
+| `p1-data/1.6`        | Cache Refresh (Bulk + Inkrementell + Dashboard-UI) | 2026-07-15 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -229,6 +230,30 @@
   + Strukturpruefungen, ohne Docker-Engine). 440/440 gruen; ruff +
   ruff-format + mypy --strict clean. ADR-0014 akzeptiert; Tag
   `p7-ops/7.1`.
+- **Slice 1.6 DONE**: Cache Refresh (Bulk + Inkrementell + Dashboard-UI).
+  NFR-Data-1 (Inkrement-Update) ist jetzt vollstaendig implementiert:
+  `ParquetCache.merge_incremental(ticker, granularity, new_bars)` macht
+  full-rewrite mit Dedup ueber Timestamps + Sort asc;
+  `ParquetCache.covers_range(...)` liefert `(fully_covered, min, max)`
+  und `list_cached_tickers(granularity) -> list[str]`. `DataService.get`
+  ruft `compute_missing_ranges(start, end, cache_min, cache_max)` und
+  fetched nur die fehlenden Bereiche, mergt dann via
+  `merge_incremental`. Neuer `data/refresh.py` mit `RefreshStatus`/
+  `RefreshResult`/`RefreshSummary` (frozen dataclasses) und
+  `refresh_tickers`/`refresh_cached`/`refresh_universe`/`refresh_all`
+  (sequentiell, pro-Ticker try/except, Default-Fenster 10 Jahre).
+  `python -m quant_trader.data refresh [--tickers|--universe]` mit
+  strukturiertem Logging `data.refresh.start`/`ticker`/`complete`,
+  Exit 1 bei Errors. `scripts/backtest_dashboard.py` hat jetzt einen
+  vierten Tab "Cache" mit drei Radio-Optionen (alle gecachten Tickers,
+  Universe-Preset, freie Ticker-Liste), `st.progress()`-Bar,
+  `st.empty()`-Live-Log und `st.dataframe()` fuer RefreshSummary +
+  deutscher Success-Text "N aktualisiert, M unveraendert, K Fehler in
+  Xs". 39 neue Tests (`test_cache_refresh.py` 7,
+  `test_incremental.py` 11, `test_refresh.py` 10, `test_cli.py` 4
+  refresh-Cases, `test_cache.py` +6 fuer `covers_range`/
+  `list_cached_tickers`). 479/479 gruen; ruff + ruff-format + mypy
+  --strict clean. ADR-0015 akzeptiert; Tag `p1-data/1.6`.
 
 ## Was offen ist
 
@@ -240,6 +265,7 @@
 | Phase 5 als Ganzes                                | DONE    | ADR-0013 accepted                   |
 | Phase 7 Slice 7.1 (Docker-Deployment + CI/CD)   | DONE      | Tag `p7-ops/7.1`                    |
 | Phase 7 als Ganzes                               | DONE      | ADR-0014 accepted                   |
+| Phase 1 Slice 1.6 (Cache Refresh)               | DONE      | Tag `p1-data/1.6`                   |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | optional nach Phase 7                |
 | Phase 8+ (Cloud-Deployment, Production-Hardening) | spaeter | YAGNI fuer persoenlichen Use-Case |
 

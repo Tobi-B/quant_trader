@@ -1,6 +1,6 @@
 # ADR 0015: Data Cache Refresh-Architektur (Bulk + Inkrementell + UI)
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-15
 Phase:      P1 Datenlayer (Erweiterung)
 Supersedes: -

@@ -113,3 +113,66 @@ def test_cache_intraday_covers_uses_correct_file(tmp_path: Path) -> None:
 
     assert cache.covers("AAPL", Granularity.INTRADAY_60M, date(2024, 1, 3), date(2024, 1, 9)) is True
     assert cache.covers("AAPL", Granularity.INTRADAY_60M, date(2024, 1, 1), date(2024, 1, 31)) is False
+
+
+def test_list_cached_tickers_returns_sorted_list(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("SPY", Granularity.DAILY, [_bar(2, 100.0)])
+    cache.write("AGG", Granularity.DAILY, [_bar(2, 100.0)])
+    cache.write("VTI", Granularity.DAILY, [_bar(2, 100.0)])
+
+    tickers = cache.list_cached_tickers(Granularity.DAILY)
+
+    assert tickers == ["AGG", "SPY", "VTI"]
+
+
+def test_list_cached_tickers_empty_when_directory_missing(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    assert cache.list_cached_tickers(Granularity.DAILY) == []
+
+
+def test_list_cached_tickers_separates_per_granularity(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("SPY", Granularity.DAILY, [_bar(2, 100.0)])
+    cache.write("SPY", Granularity.INTRADAY_60M, [_bar(2, 100.0)])
+
+    assert cache.list_cached_tickers(Granularity.DAILY) == ["SPY"]
+    assert cache.list_cached_tickers(Granularity.INTRADAY_60M) == ["SPY"]
+
+
+def test_covers_range_returns_full_when_inside(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("SPY", Granularity.DAILY, [_bar(2, 100.0), _bar(10, 110.0)])
+
+    fully_covered, cache_min, cache_max = cache.covers_range(
+        "SPY", Granularity.DAILY, date(2024, 1, 3), date(2024, 1, 9)
+    )
+
+    assert fully_covered is True
+    assert cache_min == date(2024, 1, 2)
+    assert cache_max == date(2024, 1, 10)
+
+
+def test_covers_range_returns_false_with_extents_when_partial(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+    cache.write("SPY", Granularity.DAILY, [_bar(5, 105.0), _bar(10, 110.0)])
+
+    fully_covered, cache_min, cache_max = cache.covers_range(
+        "SPY", Granularity.DAILY, date(2024, 1, 1), date(2024, 1, 31)
+    )
+
+    assert fully_covered is False
+    assert cache_min == date(2024, 1, 5)
+    assert cache_max == date(2024, 1, 10)
+
+
+def test_covers_range_returns_none_when_no_cache(tmp_path: Path) -> None:
+    cache = ParquetCache(tmp_path)
+
+    fully_covered, cache_min, cache_max = cache.covers_range(
+        "SPY", Granularity.DAILY, date(2024, 1, 1), date(2024, 1, 31)
+    )
+
+    assert fully_covered is False
+    assert cache_min is None
+    assert cache_max is None
