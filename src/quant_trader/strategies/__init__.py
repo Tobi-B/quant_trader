@@ -11,6 +11,7 @@ from quant_trader.strategies.errors import (
 )
 from quant_trader.strategies.etf_rotation import EtfRotationStrategy
 from quant_trader.strategies.loader import StrategyLoader
+from quant_trader.strategies.long_capital_short_labor import LongCapitalShortLaborStrategy
 from quant_trader.strategies.momentum import MomentumStrategy
 from quant_trader.strategies.rsi_mean_reversion import RsiMeanReversionStrategy
 from quant_trader.strategies.runner import SignalFormatter, SignalRunner
@@ -20,6 +21,7 @@ from quant_trader.strategies.types import Action, PortfolioState, Signal, Strate
 __all__ = [
     "Action",
     "EtfRotationStrategy",
+    "LongCapitalShortLaborStrategy",
     "MomentumStrategy",
     "MultiTickerStrategyBase",
     "PortfolioState",
@@ -51,4 +53,5 @@ def default_loader() -> StrategyLoader:
         _default_loader.register(MomentumStrategy)
         _default_loader.register(RsiMeanReversionStrategy)
         _default_loader.register(EtfRotationStrategy)
+        _default_loader.register(LongCapitalShortLaborStrategy)
     return _default_loader

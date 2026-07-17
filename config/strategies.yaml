@@ -35,3 +35,20 @@ etf_rotation:
     top_n: 2
     lookback_months: 6
     rebalance_freq: monthly
+
+long_capital_short_labor:
+  params:
+    long_universe:
+      - QQQ
+      - SPY
+      - VNQ
+      - JPM
+    short_universe:
+      - XRT
+      - XLI
+      - IYT
+      - JETS
+    lookback_months: 6
+    entry_threshold: 0.02
+    exit_threshold: 0.0
+    rebalance_freq: monthly
