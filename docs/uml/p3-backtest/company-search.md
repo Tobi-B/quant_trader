@@ -1,6 +1,6 @@
 # UML: Slice 3.7 - Unternehmens- und Ticker-Suche im Dashboard
 
-Status:    DRAFT
+Status:    APPROVED
 Phase:     P3 Backtest-Engine + Reports
 Slice:     3.7 Unternehmens- und Ticker-Suche im Dashboard
 Story:     US-P3.11 Unternehmen ohne bekannten Ticker finden
