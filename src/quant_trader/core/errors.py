@@ -19,6 +19,15 @@ class RateLimitedError(ProviderError):
     """Provider returned HTTP 429 or equivalent rate-limit response."""
 
 
+class SearchUnavailableError(DataError):
+    """The instrument search provider is unavailable."""
+
+    def __init__(self, query: str, reason: str) -> None:
+        super().__init__(f"{query}: {reason}")
+        self.query = query
+        self.reason = reason
+
+
 class TickerNotFoundError(DataError):
     """The ticker does not exist on any provider."""
 

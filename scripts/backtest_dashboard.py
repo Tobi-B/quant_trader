@@ -6,11 +6,15 @@ Requires the `ui` extra: `uv sync --extra ui`.
 Tabs:
 - "Run-Form" (US-P3.9): pick strategy + ticker/universe + date range, click
   "Backtest starten", see the result (KPIs + equity curve + trades) right
-  under the form in the same tab.
+  under the form in the same tab. Im Custom-Ticker-Modus ermoeglicht eine
+  Unternehmens- und Ticker-Suche (US-P3.11) das Auffinden unbekannter Ticker
+  via FMP `search`-Endpoint.
 - "Read-Mode" (US-P3.7): browse past backtest reports from `reports/`.
 - "Vergleich" (US-P3.10): compare the latest report for every registered strategy.
 - "Cache" (US-P1.9): bulk refresh the parquet cache (alle gecachten Tickers,
   Universe-Preset, freie Ticker-Liste).
+- "Strategien" (US-P2.8): pro registrierter Strategie eine README mit
+  Parametern und Risiken.
 """
 
 from __future__ import annotations
@@ -47,10 +51,13 @@ from quant_trader.backtest.orchestrator import BacktestOrchestrator
 from quant_trader.backtest.report import BacktestReport, ReportLoader
 from quant_trader.backtest.types import BacktestResult
 from quant_trader.core.config import get_settings
+from quant_trader.core.errors import SearchUnavailableError
 from quant_trader.core.logging import configure_logging, get_logger
-from quant_trader.core.types import Granularity
+from quant_trader.core.types import Granularity, Instrument
 from quant_trader.data.cache import ParquetCache
 from quant_trader.data.factory import build_chain
+from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
+from quant_trader.data.instrument_search import CompanySearchService
 from quant_trader.data.refresh import RefreshSummary, refresh_tickers
 from quant_trader.strategies import StrategyDocLoader, default_loader
 from quant_trader.strategies.loader import StrategyLoader
@@ -72,6 +79,12 @@ _CACHE_MODE_ALL = "Alle gecachten Tickers"
 _CACHE_MODE_UNIVERSE = "Universe"
 _CACHE_MODE_TICKERS = "Ticker-Liste"
 _CACHE_MODES = [_CACHE_MODE_ALL, _CACHE_MODE_UNIVERSE, _CACHE_MODE_TICKERS]
+_SEARCH_QUERY_KEY = "instrument_search_query"
+_SEARCH_RESULTS_KEY = "instrument_search_results"
+_SEARCH_RESULTS_QUERY_KEY = "instrument_search_results_query"
+_SEARCH_COMPLETED_QUERY_KEY = "instrument_search_completed_query"
+_SEARCH_ERROR_KEY = "instrument_search_error"
+_TICKER_KEY = "run_ticker"
 
 
 def _reports_dir() -> Path:
@@ -84,21 +97,26 @@ def _reports_dir() -> Path:
 def _build_services() -> tuple[
     ReportLoader,
     DashboardRunner,
+    CompanySearchService,
     list[str],
     list[str],
 ]:
     """Build the long-lived services once per Streamlit session."""
+    settings = get_settings()
     loader = default_loader()
-    presets = PresetRepository(get_settings().universe_presets_path)
+    presets = PresetRepository(settings.universe_presets_path)
     orchestrator = BacktestOrchestrator(
-        cache=ParquetCache(get_settings().data_dir),
+        cache=ParquetCache(settings.data_dir),
         loader=loader,
         reports_dir=_REPORTS_DIR,
     )
     runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
+    search_service = CompanySearchService(
+        FinancialModellingPrepProvider(api_key=settings.fmp_api_key)
+    )
     strategy_names = loader.registered_names()
     preset_names = presets.names()
-    return ReportLoader(_REPORTS_DIR), runner, strategy_names, preset_names
+    return ReportLoader(_REPORTS_DIR), runner, search_service, strategy_names, preset_names
 
 
 def _render_equity_curve(report: BacktestReport) -> go.Figure:
@@ -183,8 +201,80 @@ def _render_trades_table(report: BacktestReport) -> None:
     st.dataframe(df, use_container_width=True)
 
 
+def _instrument_label(instrument: Instrument) -> str:
+    return f"{instrument.name} - {instrument.ticker} ({instrument.exchange})"
+
+
+def _render_instrument_search(search_service: CompanySearchService) -> None:
+    st.caption("Unternehmen oder ETF suchen, wenn der Ticker unbekannt ist.")
+    query = st.text_input(
+        "Unternehmensname oder Ticker",
+        key=_SEARCH_QUERY_KEY,
+        placeholder="z.B. Apple oder AAPL",
+    )
+    normalized_query = query.strip()
+    search_clicked = st.button(
+        "Unternehmen suchen",
+        key="instrument_search_button",
+        disabled=not bool(normalized_query),
+    )
+
+    if search_clicked:
+        try:
+            results = search_service.search(normalized_query)
+        except SearchUnavailableError:
+            st.session_state[_SEARCH_RESULTS_KEY] = []
+            st.session_state[_SEARCH_RESULTS_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_COMPLETED_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_ERROR_KEY] = normalized_query
+        else:
+            st.session_state[_SEARCH_RESULTS_KEY] = results
+            st.session_state[_SEARCH_RESULTS_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_COMPLETED_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_ERROR_KEY] = None
+
+    if st.session_state.get(_SEARCH_ERROR_KEY) == normalized_query:
+        st.error(
+            "Die Unternehmenssuche ist vorübergehend nicht verfügbar. "
+            "Du kannst den Ticker unten manuell eingeben."
+        )
+
+    result_query = st.session_state.get(_SEARCH_RESULTS_QUERY_KEY)
+    raw_results = st.session_state.get(_SEARCH_RESULTS_KEY, [])
+    results = (
+        [result for result in raw_results if isinstance(result, Instrument)]
+        if result_query == normalized_query
+        else []
+    )
+    if (
+        not results
+        and st.session_state.get(_SEARCH_COMPLETED_QUERY_KEY) == normalized_query
+        and st.session_state.get(_SEARCH_ERROR_KEY) != normalized_query
+    ):
+        st.info(f"Keine Treffer für '{normalized_query}'. Bitte Suchbegriff ändern.")
+    if not results:
+        return
+
+    selected_index = st.selectbox(
+        "Suchtreffer auswählen",
+        options=list(range(len(results))),
+        format_func=lambda index: _instrument_label(results[index]),
+        key="instrument_search_selected",
+    )
+    if st.button("Auswahl übernehmen", key="instrument_search_apply"):
+        st.session_state[_TICKER_KEY] = results[selected_index].ticker
+        st.session_state[_SEARCH_RESULTS_KEY] = []
+        st.session_state[_SEARCH_RESULTS_QUERY_KEY] = None
+        st.session_state[_SEARCH_COMPLETED_QUERY_KEY] = None
+        st.session_state[_SEARCH_ERROR_KEY] = None
+        st.rerun()
+
+
 def _render_run_form(
-    runner: DashboardRunner, strategy_names: list[str], preset_names: list[str]
+    runner: DashboardRunner,
+    search_service: CompanySearchService,
+    strategy_names: list[str],
+    preset_names: list[str],
 ) -> None:
     st.subheader("Neuen Backtest starten")
     if not strategy_names:
@@ -197,23 +287,29 @@ def _render_run_form(
         if isinstance(prefill_strategy, str) and prefill_strategy in strategy_names
         else 0
     )
-    with st.sidebar.form(key="run_form"):
+    with st.sidebar:
         st.header("Backtest-Konfiguration")
         strategy = st.selectbox("Strategie", strategy_names, index=strategy_index)
         universe_options = [_CUSTOM_TICKER_OPTION, *preset_names]
         universe_choice = st.selectbox("Universe-Preset", universe_options)
         ticker = ""
         if universe_choice == _CUSTOM_TICKER_OPTION:
-            ticker = st.text_input("Ticker", value="", placeholder="z.B. SPY")
-        today = date.today()
-        start_default = today - timedelta(days=365 * 2)
-        end_default = today
-        start = st.date_input("Start-Datum", value=start_default)
-        end = st.date_input("End-Datum", value=end_default)
-        submitted = st.form_submit_button(
-            "Backtest starten",
-            disabled=bool(st.session_state.get("running", False)),
-        )
+            _render_instrument_search(search_service)
+            ticker = st.text_input(
+                "Ticker",
+                key=_TICKER_KEY,
+                placeholder="z.B. SPY",
+            )
+        with st.form(key="run_form"):
+            today = date.today()
+            start_default = today - timedelta(days=365 * 2)
+            end_default = today
+            start = st.date_input("Start-Datum", value=start_default)
+            end = st.date_input("End-Datum", value=end_default)
+            submitted = st.form_submit_button(
+                "Backtest starten",
+                disabled=bool(st.session_state.get("running", False)),
+            )
 
     if not submitted:
         return
@@ -616,7 +712,7 @@ def main() -> None:
     st.set_page_config(page_title="QuantTrader - Backtest Dashboard", layout="wide")
     st.title("QuantTrader - Backtest Dashboard")
 
-    report_loader, runner, strategy_names, preset_names = _build_services()
+    report_loader, runner, search_service, strategy_names, preset_names = _build_services()
     cache, provider, cache_preset_names = _build_cache_services()
     tab_labels = [
         _RUN_FORM_TAB,
@@ -631,7 +727,7 @@ def main() -> None:
         key="tabs",
     )
     with tab_run:
-        _render_run_form(runner, strategy_names, preset_names)
+        _render_run_form(runner, search_service, strategy_names, preset_names)
     with tab_read:
         _render_read_mode(report_loader)
     with tab_comparison:

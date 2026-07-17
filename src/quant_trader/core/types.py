@@ -21,6 +21,14 @@ class Preset:
         }
 
 
+@dataclass(frozen=True)
+class Instrument:
+    ticker: str
+    name: str
+    exchange: str
+    currency: str
+
+
 class Granularity(StrEnum):
     DAILY = "daily"
     INTRADAY_60M = "60m"

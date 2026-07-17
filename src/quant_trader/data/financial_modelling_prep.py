@@ -6,11 +6,12 @@ import os
 from collections.abc import Mapping
 from datetime import date, datetime
 from typing import ClassVar, cast
+from urllib.parse import urlencode
 
 import requests
 
 from quant_trader.core.errors import ProviderError, RateLimitedError, TickerNotFoundError
-from quant_trader.core.types import Bar, Granularity
+from quant_trader.core.types import Bar, Granularity, Instrument
 
 _BASE_URL = "https://financialmodelingprep.com/api/v3"
 _ENDPOINT_MAP: dict[Granularity, str] = {
@@ -30,6 +31,50 @@ class FinancialModellingPrepProvider:
             api_key if api_key is not None else os.environ.get("FINANCIAL_MODELLING_PREP_KEY", "")
         )
         self._session = session if session is not None else requests.Session()
+
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 20,
+        exchange: str | None = None,
+    ) -> list[Instrument]:
+        if not self._api_key:
+            raise ProviderError(self.name, "FINANCIAL_MODELLING_PREP_KEY not set")
+
+        cleaned_query = query.strip()
+        if not cleaned_query:
+            return []
+
+        params = [
+            ("query", cleaned_query),
+            ("limit", str(max(1, min(limit, 100)))),
+        ]
+        if exchange:
+            params.append(("exchange", exchange.strip()))
+        params.append(("apikey", self._api_key))
+        url = f"{_BASE_URL}/search?{urlencode(params)}"
+
+        try:
+            response = self._session.get(url, timeout=30)
+        except requests.RequestException as exc:
+            raise ProviderError(self.name, f"network: {exc}") from exc
+
+        if response.status_code == 429:
+            raise RateLimitedError(self.name, "HTTP 429")
+        if response.status_code != 200:
+            raise ProviderError(self.name, f"HTTP {response.status_code}")
+
+        payload = cast(object, response.json())
+        if isinstance(payload, dict):
+            response_data: Mapping[str, object] = cast(Mapping[str, object], payload)
+            error_message = response_data.get("Error Message")
+            if isinstance(error_message, str):
+                raise ProviderError(self.name, error_message)
+            raise ProviderError(self.name, "invalid JSON response")
+        if not isinstance(payload, list):
+            raise ProviderError(self.name, "invalid JSON response")
+        return _parse_search_results(payload)
 
     def fetch(
         self,
@@ -78,6 +123,40 @@ class FinancialModellingPrepProvider:
             raise TickerNotFoundError(ticker)
 
         return _parse_historical(historical, granularity, start, end)
+
+
+
+def _parse_search_results(payload: list[object]) -> list[Instrument]:
+    results: list[Instrument] = []
+    for raw_row in payload:
+        if not isinstance(raw_row, dict):
+            continue
+        row: Mapping[str, object] = cast(Mapping[str, object], raw_row)
+        ticker = row.get("symbol")
+        name = row.get("name")
+        if not isinstance(ticker, str) or not ticker.strip():
+            continue
+        if not isinstance(name, str) or not name.strip():
+            continue
+        exchange = _first_text(row, "stockExchange", "exchangeShortName", "exchange")
+        currency = _first_text(row, "currency")
+        results.append(
+            Instrument(
+                ticker=ticker.strip().upper(),
+                name=name.strip(),
+                exchange=exchange or "Unbekannt",
+                currency=currency,
+            )
+        )
+    return results
+
+
+def _first_text(row: Mapping[str, object], *keys: str) -> str:
+    for key in keys:
+        value = row.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def _parse_historical(
