@@ -57,7 +57,10 @@ from quant_trader.core.types import Granularity, Instrument
 from quant_trader.data.cache import ParquetCache
 from quant_trader.data.factory import build_chain
 from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
-from quant_trader.data.instrument_search import CompanySearchService
+from quant_trader.data.instrument_search import (
+    CompanySearchService,
+    FmpProfilePhantomValidator,
+)
 from quant_trader.data.refresh import RefreshSummary, refresh_tickers
 from quant_trader.strategies import StrategyDocLoader, default_loader
 from quant_trader.strategies.loader import StrategyLoader
@@ -112,7 +115,8 @@ def _build_services() -> tuple[
     )
     runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
     search_service = CompanySearchService(
-        FinancialModellingPrepProvider(api_key=settings.fmp_api_key)
+        FinancialModellingPrepProvider(api_key=settings.fmp_api_key),
+        phantom_validator=FmpProfilePhantomValidator(api_key=settings.fmp_api_key),
     )
     strategy_names = loader.registered_names()
     preset_names = presets.names()

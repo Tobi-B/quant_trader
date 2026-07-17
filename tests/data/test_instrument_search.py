@@ -15,7 +15,10 @@ from quant_trader.core.errors import (
 )
 from quant_trader.core.types import Instrument
 from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
-from quant_trader.data.instrument_search import CompanySearchService
+from quant_trader.data.instrument_search import (
+    CompanySearchService,
+    FmpProfilePhantomValidator,
+)
 
 
 class _FakeResponse:
@@ -32,10 +35,17 @@ class _FakeSession:
         self._response = response
         self.last_url: str | None = None
         self.last_timeout: int | None = None
+        self.last_params: dict[str, str] | None = None
 
-    def get(self, url: str, timeout: int = 0) -> _FakeResponse:
+    def get(
+        self,
+        url: str,
+        params: dict[str, str] | None = None,
+        timeout: int = 0,
+    ) -> _FakeResponse:
         self.last_url = url
         self.last_timeout = timeout
+        self.last_params = params
         return self._response
 
 
@@ -169,3 +179,176 @@ def test_company_search_service_preserves_no_results() -> None:
     service = CompanySearchService(provider)
 
     assert service.search("unknown") == []
+
+
+class _FakeValidator:
+    def __init__(
+        self,
+        decisions: dict[str, bool] | None = None,
+        exc: Exception | None = None,
+    ) -> None:
+        self._decisions = decisions or {}
+        self._exc = exc
+        self.calls: list[str] = []
+
+    def is_real(self, symbol: str) -> bool:
+        self.calls.append(symbol)
+        if self._exc is not None:
+            raise self._exc
+        return self._decisions.get(symbol, True)
+
+
+def test_company_search_service_filters_phantoms() -> None:
+    results = [
+        Instrument("AAPL.DE", "Apple Inc.", "XETRA", "EUR"),
+        Instrument("APC.DE", "Apple Inc.", "XETRA", "EUR"),
+        Instrument("AAPL", "Apple Inc.", "NASDAQ", "USD"),
+    ]
+    provider = _SearchProvider(results)
+    validator = _FakeValidator(
+        {"AAPL.DE": False, "APC.DE": True, "AAPL": True},
+    )
+    service = CompanySearchService(provider, phantom_validator=validator)
+
+    kept = service.search("apple")
+
+    assert kept == [
+        Instrument("APC.DE", "Apple Inc.", "XETRA", "EUR"),
+        Instrument("AAPL", "Apple Inc.", "NASDAQ", "USD"),
+    ]
+    assert validator.calls == ["AAPL.DE", "APC.DE", "AAPL"]
+
+
+def test_company_search_service_validator_error_keeps_result() -> None:
+    results = [Instrument("AAPL", "Apple Inc.", "NASDAQ", "USD")]
+    provider = _SearchProvider(results)
+    validator = _FakeValidator(exc=ProviderError("fmp", "HTTP 503"))
+    service = CompanySearchService(provider, phantom_validator=validator)
+
+    kept = service.search("apple")
+
+    assert kept == results
+
+
+def test_company_search_service_no_validator_returns_all() -> None:
+    results = [
+        Instrument("AAPL.DE", "Apple Inc.", "XETRA", "EUR"),
+        Instrument("AAPL", "Apple Inc.", "NASDAQ", "USD"),
+    ]
+    provider = _SearchProvider(results)
+    service = CompanySearchService(provider)
+
+    assert service.search("apple") == results
+
+
+def test_fmp_phantom_validator_flags_null_price() -> None:
+    validator = FmpProfilePhantomValidator(
+        api_key="k",
+        session=cast(
+            requests.Session,
+            _FakeSession(
+                _FakeResponse(
+                    200,
+                    [
+                        {
+                            "symbol": "AAPL.DE",
+                            "price": None,
+                            "marketCap": 0,
+                            "volume": 0,
+                        }
+                    ],
+                )
+            ),
+        ),
+    )
+
+    assert validator.is_real("AAPL.DE") is False
+
+
+def test_fmp_phantom_validator_flags_zero_volume() -> None:
+    validator = FmpProfilePhantomValidator(
+        api_key="k",
+        session=cast(
+            requests.Session,
+            _FakeSession(
+                _FakeResponse(
+                    200,
+                    [
+                        {
+                            "symbol": "APC.DE",
+                            "price": 291.65,
+                            "marketCap": 1,
+                            "volume": 0,
+                        }
+                    ],
+                )
+            ),
+        ),
+    )
+
+    assert validator.is_real("APC.DE") is False
+
+
+def test_fmp_phantom_validator_accepts_real_listing() -> None:
+    validator = FmpProfilePhantomValidator(
+        api_key="k",
+        session=cast(
+            requests.Session,
+            _FakeSession(
+                _FakeResponse(
+                    200,
+                    [
+                        {
+                            "symbol": "APC.DE",
+                            "price": 291.65,
+                            "marketCap": 4_283_567_377_400,
+                            "volume": 49_810,
+                        }
+                    ],
+                )
+            ),
+        ),
+    )
+
+    assert validator.is_real("APC.DE") is True
+
+
+def test_fmp_phantom_validator_returns_false_for_empty_profile() -> None:
+    validator = FmpProfilePhantomValidator(
+        api_key="k",
+        session=cast(requests.Session, _FakeSession(_FakeResponse(200, []))),
+    )
+
+    assert validator.is_real("ZZZZ.DE") is False
+
+
+def test_fmp_phantom_validator_returns_true_without_api_key() -> None:
+    validator = FmpProfilePhantomValidator(api_key="")
+
+    assert validator.is_real("AAPL.DE") is True
+
+
+def test_fmp_phantom_validator_raises_for_network_error() -> None:
+    class _BrokenSession:
+        def get(
+            self, url: str, params: dict[str, str] | None = None, timeout: int = 0
+        ) -> _FakeResponse:
+            raise requests.ConnectionError("offline")
+
+    validator = FmpProfilePhantomValidator(
+        api_key="k",
+        session=cast(requests.Session, _BrokenSession()),
+    )
+
+    with pytest.raises(ProviderError, match="network"):
+        validator.is_real("AAPL.DE")
+
+
+def test_fmp_phantom_validator_raises_for_rate_limit() -> None:
+    validator = FmpProfilePhantomValidator(
+        api_key="k",
+        session=cast(requests.Session, _FakeSession(_FakeResponse(429, {}))),
+    )
+
+    with pytest.raises(ProviderError, match="HTTP 429"):
+        validator.is_real("AAPL.DE")
