@@ -13,9 +13,10 @@ import requests
 from quant_trader.core.errors import ProviderError, RateLimitedError, TickerNotFoundError
 from quant_trader.core.types import Bar, Granularity, Instrument
 
-_BASE_URL = "https://financialmodelingprep.com/api/v3"
-_ENDPOINT_MAP: dict[Granularity, str] = {
-    Granularity.DAILY: "historical-price-full",
+_BASE_URL = "https://financialmodelingprep.com/stable"
+_SEARCH_ENDPOINT = "search-name"
+_EOD_ENDPOINT = "historical-price-eod/full"
+_INTRADAY_ENDPOINT_MAP: dict[Granularity, str] = {
     Granularity.INTRADAY_60M: "historical-chart/1hour",
     Granularity.INTRADAY_15M: "historical-chart/15min",
 }
@@ -53,7 +54,7 @@ class FinancialModellingPrepProvider:
         if exchange:
             params.append(("exchange", exchange.strip()))
         params.append(("apikey", self._api_key))
-        url = f"{_BASE_URL}/search?{urlencode(params)}"
+        url = f"{_BASE_URL}/{_SEARCH_ENDPOINT}?{urlencode(params)}"
 
         try:
             response = self._session.get(url, timeout=30)
@@ -86,11 +87,19 @@ class FinancialModellingPrepProvider:
         if not self._api_key:
             raise ProviderError(self.name, "FINANCIAL_MODELLING_PREP_KEY not set")
 
-        endpoint = _ENDPOINT_MAP[granularity]
-        url = (
-            f"{_BASE_URL}/{endpoint}/{ticker}"
-            f"?from={start.isoformat()}&to={end.isoformat()}&apikey={self._api_key}"
-        )
+        if granularity == Granularity.DAILY:
+            url = (
+                f"{_BASE_URL}/{_EOD_ENDPOINT}"
+                f"?symbol={ticker}&from={start.isoformat()}&to={end.isoformat()}"
+                f"&apikey={self._api_key}"
+            )
+        else:
+            endpoint = _INTRADAY_ENDPOINT_MAP[granularity]
+            url = (
+                f"{_BASE_URL}/{endpoint}"
+                f"?symbol={ticker}&from={start.isoformat()}&to={end.isoformat()}"
+                f"&apikey={self._api_key}"
+            )
 
         try:
             response = self._session.get(url, timeout=30)
@@ -103,27 +112,22 @@ class FinancialModellingPrepProvider:
             raise ProviderError(self.name, f"HTTP {response.status_code}")
 
         payload = cast(object, response.json())
-        if not isinstance(payload, dict):
-            raise ProviderError(self.name, "invalid JSON response")
-        response_data: Mapping[str, object] = cast(Mapping[str, object], payload)
-
-        error_message = response_data.get("Error Message")
-        if isinstance(error_message, str):
-            uppercase_message = error_message.upper()
-            if "INVALID API" in uppercase_message or "API KEY" in uppercase_message:
+        if isinstance(payload, dict):
+            response_data: Mapping[str, object] = cast(Mapping[str, object], payload)
+            error_message = response_data.get("Error Message")
+            if isinstance(error_message, str):
+                uppercase_message = error_message.upper()
+                if "INVALID API" in uppercase_message or "API KEY" in uppercase_message:
+                    raise ProviderError(self.name, error_message)
+                if "LIMIT" in uppercase_message:
+                    raise RateLimitedError(self.name, error_message)
                 raise ProviderError(self.name, error_message)
-            if "LIMIT" in uppercase_message:
-                raise RateLimitedError(self.name, error_message)
-            raise ProviderError(self.name, error_message)
-
-        historical = response_data.get("historical")
-        if not isinstance(historical, list):
+            raise ProviderError(self.name, "invalid JSON response")
+        if not isinstance(payload, list):
+            raise ProviderError(self.name, "invalid JSON response")
+        if not payload:
             raise TickerNotFoundError(ticker)
-        if not historical:
-            raise TickerNotFoundError(ticker)
-
-        return _parse_historical(historical, granularity, start, end)
-
+        return _parse_historical(payload, granularity, start, end)
 
 
 def _parse_search_results(payload: list[object]) -> list[Instrument]:
@@ -138,7 +142,7 @@ def _parse_search_results(payload: list[object]) -> list[Instrument]:
             continue
         if not isinstance(name, str) or not name.strip():
             continue
-        exchange = _first_text(row, "stockExchange", "exchangeShortName", "exchange")
+        exchange = _first_text(row, "exchange", "exchangeFullName")
         currency = _first_text(row, "currency")
         results.append(
             Instrument(
@@ -183,7 +187,7 @@ def _parse_historical(
                 high=_float(row, "high"),
                 low=_float(row, "low"),
                 close=_float(row, "close"),
-                adjusted_close=_float(row, "adjClose"),
+                adjusted_close=_float(row, "adjClose", fallback_key="close"),
                 volume=_int(row, "volume"),
             )
         )
@@ -197,8 +201,12 @@ def _parse_timestamp(value: str, granularity: Granularity) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def _float(row: Mapping[str, object], key: str) -> float:
-    value = row[key]
+def _float(row: Mapping[str, object], key: str, *, fallback_key: str | None = None) -> float:
+    value = row.get(key)
+    if value is None and fallback_key is not None:
+        value = row.get(fallback_key)
+    if value is None:
+        raise ValueError(f"FMP field {key} is not numeric")
     if not isinstance(value, (int, float, str)):
         raise ValueError(f"FMP field {key} is not numeric")
     return float(value)

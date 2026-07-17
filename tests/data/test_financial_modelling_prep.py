@@ -41,12 +41,12 @@ class _BrokenSession:
 
 def _daily_row(day: str, value: float) -> dict[str, object]:
     return {
+        "symbol": "SPY",
         "date": day,
         "open": value,
         "high": value + 1.0,
         "low": value - 1.0,
         "close": value + 0.5,
-        "adjClose": value + 0.5,
         "volume": 1000,
     }
 
@@ -65,10 +65,7 @@ def _provider(response: _FakeResponse) -> tuple[FinancialModellingPrepProvider, 
 
 
 def test_fetch_daily_happy_path() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [_daily_row("2024-01-03", 101.0), _daily_row("2024-01-02", 100.0)],
-    }
+    payload = [_daily_row("2024-01-03", 101.0), _daily_row("2024-01-02", 100.0)]
     provider, session = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 3), Granularity.DAILY)
@@ -80,17 +77,14 @@ def test_fetch_daily_happy_path() -> None:
         datetime(2024, 1, 3, 16),
     ]
     assert session.last_url == (
-        "https://financialmodelingprep.com/api/v3/historical-price-full/SPY"
-        "?from=2024-01-02&to=2024-01-03&apikey=test-key"
+        "https://financialmodelingprep.com/stable/historical-price-eod/full"
+        "?symbol=SPY&from=2024-01-02&to=2024-01-03&apikey=test-key"
     )
     assert session.last_timeout == 30
 
 
 def test_fetch_60m_happy_path() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [_intraday_row("2024-01-02 10:00:00", 100.0)],
-    }
+    payload = [_intraday_row("2024-01-02 10:00:00", 100.0)]
     provider, session = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 2), Granularity.INTRADAY_60M)
@@ -98,14 +92,12 @@ def test_fetch_60m_happy_path() -> None:
     assert len(bars) == 1
     assert bars[0].timestamp == datetime(2024, 1, 2, 10)
     assert session.last_url is not None
-    assert "/historical-chart/1hour/SPY?" in session.last_url
+    assert "/historical-chart/1hour?" in session.last_url
+    assert "symbol=SPY" in session.last_url
 
 
 def test_fetch_15m_happy_path() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [_intraday_row("2024-01-02 10:15:00", 100.0)],
-    }
+    payload = [_intraday_row("2024-01-02 10:15:00", 100.0)]
     provider, session = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 2), Granularity.INTRADAY_15M)
@@ -113,11 +105,12 @@ def test_fetch_15m_happy_path() -> None:
     assert len(bars) == 1
     assert bars[0].timestamp == datetime(2024, 1, 2, 10, 15)
     assert session.last_url is not None
-    assert "/historical-chart/15min/SPY?" in session.last_url
+    assert "/historical-chart/15min?" in session.last_url
+    assert "symbol=SPY" in session.last_url
 
 
 def test_empty_historical_raises_ticker_not_found() -> None:
-    provider, _ = _provider(_FakeResponse(200, {"symbol": "ZZZZ", "historical": []}))
+    provider, _ = _provider(_FakeResponse(200, []))
 
     with pytest.raises(TickerNotFoundError) as exc:
         provider.fetch("ZZZZ", date(2024, 1, 2), date(2024, 1, 3), Granularity.DAILY)
@@ -183,14 +176,11 @@ def test_no_api_key_raises_provider_error() -> None:
 
 
 def test_date_filter_excludes_out_of_range() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [
-            _daily_row("2024-01-01", 99.0),
-            _daily_row("2024-01-02", 100.0),
-            _daily_row("2024-01-04", 103.0),
-        ],
-    }
+    payload = [
+        _daily_row("2024-01-01", 99.0),
+        _daily_row("2024-01-02", 100.0),
+        _daily_row("2024-01-04", 103.0),
+    ]
     provider, _ = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 3), Granularity.DAILY)
@@ -198,10 +188,10 @@ def test_date_filter_excludes_out_of_range() -> None:
     assert [bar.timestamp.date() for bar in bars] == [date(2024, 1, 2)]
 
 
-def test_camelcase_adjclose_mapped() -> None:
-    payload = {"symbol": "SPY", "historical": [_daily_row("2024-01-02", 100.0)]}
+def test_adjclose_falls_back_to_close_when_missing() -> None:
+    payload = [_daily_row("2024-01-02", 100.0)]
     provider, _ = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 2), Granularity.DAILY)
 
-    assert bars[0].adjusted_close == 100.5
+    assert bars[0].adjusted_close == bars[0].close == 100.5

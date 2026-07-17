@@ -73,11 +73,11 @@ def test_fmp_search_parses_instruments() -> None:
                 {
                     "symbol": "aapl",
                     "name": "Apple Inc.",
-                    "stockExchange": "NASDAQ",
-                    "exchangeShortName": "NASDAQ",
+                    "exchange": "NASDAQ",
+                    "exchangeFullName": "NASDAQ Global Select",
                     "currency": "USD",
                 },
-                {"symbol": "MSFT", "name": "Microsoft Corporation", "exchangeShortName": "NASDAQ"},
+                {"symbol": "MSFT", "name": "Microsoft Corporation", "exchange": "NASDAQ"},
                 {"symbol": "", "name": "Invalid"},
             ],
         )
@@ -90,7 +90,7 @@ def test_fmp_search_parses_instruments() -> None:
         Instrument("MSFT", "Microsoft Corporation", "NASDAQ", ""),
     ]
     assert session.last_url == (
-        "https://financialmodelingprep.com/api/v3/search?query=Apple&limit=20&apikey=test-key"
+        "https://financialmodelingprep.com/stable/search-name?query=Apple&limit=20&apikey=test-key"
     )
     assert session.last_timeout == 30
 
@@ -101,7 +101,7 @@ def test_fmp_search_encodes_query_and_bounds_limit() -> None:
     provider.search(" Microsoft Corp ", limit=200, exchange="NASDAQ")
 
     assert session.last_url == (
-        "https://financialmodelingprep.com/api/v3/search?"
+        "https://financialmodelingprep.com/stable/search-name?"
         "query=Microsoft+Corp&limit=100&exchange=NASDAQ&apikey=test-key"
     )
 

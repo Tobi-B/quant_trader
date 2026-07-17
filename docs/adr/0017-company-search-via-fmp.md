@@ -6,6 +6,27 @@ Phase:      P3 Backtest-Engine + Reports (Erweiterung)
 Supersedes: -
 Superseded by: -
 
+## Update 2026-07-18: Migration auf FMP `/stable/*` Endpoints
+
+FMP hat mit August 2025 die Legacy-Endpoints unter `/api/v3/*` ausschliesslich
+fuer Bestandskunden mit Subscription vor dem 31.08.2025 offen gehalten; alle
+uebrigen Keys erhalten `HTTP 403` mit `Legacy Endpoint`-Fehlertext. Die
+`_build_services()`-Factory und der FMP-Provider wurden auf die
+`/stable/*`-Endpoints umgestellt:
+
+- Search: `/api/v3/search` -> `/stable/search-name` (Response-Felder
+  `exchange` / `exchangeFullName` statt `stockExchange` / `exchangeShortName`).
+- Daily Bars: `/api/v3/historical-price-full/{ticker}` ->
+  `/stable/historical-price-eod/full?symbol={ticker}` (Antwort ist ein flaches
+  Array, kein `{symbol, historical: [...]}`-Wrapper mehr; `adjClose` entfaellt
+  im Free-Tier, Parser faellt auf `close` zurueck).
+- Intraday: `/api/v3/historical-chart/{1hour|15min}/{ticker}` ->
+  `/stable/historical-chart/{1hour|15min}?symbol={ticker}` (URL-Wechsel;
+  Free-Tier liefert `HTTP 402`, Fallback-Kette uebernimmt weiterhin).
+
+Verhalten der UI ist unveraendert: Suche liefert Treffer, Bars werden ueber
+die bestehende Fallback-Kette geladen.
+
 ## Context
 
 Das Streamlit-Dashboard (Slices 3.3 + 3.5 + 3.6) ermoeglicht das Starten von
@@ -15,7 +36,7 @@ kennen (z.B. `AAPL`). Viele Einsteiger kennen aber nur den Unternehmensnamen
 
 Phase 1 hat Financial Modelling Prep (FMP) als Primary-Provider etabliert
 (NFR-Data-3, ADR-0009). FMP bietet einen Search-Endpoint
-`GET /api/v3/search?query=...&limit=...&exchange=...&apikey=...`, der genau
+`GET /stable/search-name?query=...&limit=...&exchange=...&apikey=...`, der genau
 fuer diesen Use-Case gedacht ist.
 
 Im Repo vorhanden:
