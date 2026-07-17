@@ -69,6 +69,8 @@
 | `data.alpha_vantage`             | AlphaVantage-spezifische HTTP-Calls              | Cache, andere Provider               |
 | `data.yfinance_provider`         | YFinance-spezifische Calls                       | Cache, andere Provider               |
 | `data.stockdata_provider`        | StockData.org-spezifische Calls                  | Cache, andere Provider               |
+| `data.financial_modelling_prep`  | FMP-spezifische Calls (Bars + Search, P3.7)      | Cache, andere Provider               |
+| `data.instrument_search`         | CompanySearchService + Protocol (P3.7)           | Streamlit                            |
 | `data.fallback`                  | Decorator fuer Provider-Kette                    | YAML, CLI                            |
 | `data.cache`                     | Parquet-Lese/-Schreib-Cache                      | Provider                             |
 | `data.factory`                   | ProviderChain-Assembly aus Settings              | CLI                                  |
@@ -196,8 +198,8 @@ Pro Layer ein Basis-Error:
 
 - `AGENTS.md` - Stack, Konventionen, Verification Gate
 - `docs/STATE.md` - aktueller Projektstand, Resume-Punkt
-- `docs/requirements/nfrs.md` - 13 NFRs mit IDs
-- `docs/adr/` - 8 Architecture Decision Records
+- `docs/requirements/nfrs.md` - 14 NFRs mit IDs
+- `docs/adr/` - 17 Architecture Decision Records (0001-0017)
 - `docs/prd/<phase>/<slice>.md` - Slice-PRDs
 - `docs/uml/<phase>/<slice>.md` - Mermaid UML-Diagramme
 - `docs/userstories/<phase>/<slice>.md` - User Stories

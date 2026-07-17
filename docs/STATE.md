@@ -7,14 +7,14 @@
 
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
-| Datum                 | 2026-07-15                                          |
-| Letzter Commit (main) | TBD (slice 1.6 commit)                              |
-| Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 479/479 gruen (440 + 39 neue)                       |
+| Datum                 | 2026-07-17                                          |
+| Letzter Commit (main) | TBD (slice 3.7 commit)                              |
+| Branch                | `main` (dirty, slice 3.7 in Arbeit)                |
+| Tests                 | 519/519 gruen (505 + 14 neue)                       |
 | Lint + Format         | gruen                                               |
-| Aktive Phase          | P1 Datenlayer (Erweiterung)                         |
-| Aktiver Slice         | Slice 1.6 (Cache Refresh) - DONE                    |
-| Open Decision         | - (NFR-Data-1 vollstaendig implementiert)           |
+| Aktive Phase          | P3 Backtest (Erweiterung)                           |
+| Aktiver Slice         | Slice 3.7 (Company Search) - DONE                   |
+| Open Decision         | - (Slice 3.7 implementiert)                         |
 
 ## Phasen-Tags (chronologisch)
 
@@ -43,6 +43,7 @@
 | `p7-ops/7.1`         | Docker-Deployment (Multi-Stage + Compose + CI/CD)   | 2026-07-14 | abgeschlossen |
 | `p1-data/1.6`        | Cache Refresh (Bulk + Inkrementell + Dashboard-UI) | 2026-07-15 | abgeschlossen |
 | `p2-strategies/2.6` | Strategy Documentation Viewer (README + Dashboard-Tab) | 2026-07-15 | abgeschlossen |
+| `p3-backtest/3.7`   | Unternehmens- und Ticker-Suche im Dashboard (FMP `search`) | 2026-07-17 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -273,6 +274,22 @@
   `test_dashboard_strategy_tab.py` 7). 505/505 gruen; ruff +
   ruff-format + mypy --strict clean. ADR-0016 akzeptiert; Tag
   `p2-strategies/2.6`.
+- **Slice 3.7 DONE**: Unternehmens- und Ticker-Suche im Dashboard.
+  US-P3.11 erfuellt: Trader koennen ohne Tickerkenntnis Backtests starten.
+  `Instrument` (frozen dataclass) und `SearchUnavailableError(DataError)`
+  im Core. `FinancialModellingPrepProvider.search(query, *, limit, exchange)`
+  neu (FMP-Endpoint `/api/v3/search`, Free-Tier-kompatibel, gleicher Key wie
+  Bars). `CompanySearchService` in `data/instrument_search.py` (Protocol
+  `InstrumentSearchProvider`, Logging `instrument.search.start`/`.complete`/
+  `.unavailable`, mappt `DataError` -> `SearchUnavailableError`).
+  `_render_instrument_search` in `scripts/backtest_dashboard.py` mit
+  Caption, Text-Input, Button, Selectbox, "Auswahl uebernehmen" ->
+  `st.session_state["run_ticker"]`. Nur im Custom-Ticker-Modus des Run-Forms
+  eingebunden. Fehlermeldungen deutsch ("Die Unternehmenssuche ist
+  voruebergehend nicht verfuegbar. ..." / "Keine Treffer fuer '<q>' ...").
+  14 neue Tests (`test_instrument_search.py` 10, `test_dashboard_company_search.py` 4).
+  519/519 gruen; ruff + ruff-format + mypy --strict clean.
+  ADR-0017 akzeptiert; Tag `p3-backtest/3.7`.
 
 ## Was offen ist
 
@@ -286,6 +303,7 @@
 | Phase 7 als Ganzes                               | DONE      | ADR-0014 accepted                   |
 | Phase 1 Slice 1.6 (Cache Refresh)               | DONE      | Tag `p1-data/1.6`                   |
 | Phase 2 Slice 2.6 (Strategy Docs Viewer)       | DONE      | Tag `p2-strategies/2.6`             |
+| Phase 3 Slice 3.7 (Company Search)             | DONE      | Tag `p3-backtest/3.7`               |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | optional nach Phase 7                |
 | Phase 8+ (Cloud-Deployment, Production-Hardening) | spaeter | YAGNI fuer persoenlichen Use-Case |
 
@@ -296,16 +314,16 @@ docs/STATE.md                       <- diese Datei
 docs/00_dev_workflow.md             <- Loop-Regeln (DE)
 docs/architecture.md                <- Layered-Overview, Module-Tabelle, Datenfluss
 docs/requirements/nfrs.md           <- 14 NFRs mit IDs
-docs/adr/                           <- 14 Architecture Decision Records (0001-0014)
-docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1-P7/7.1)
+docs/adr/                           <- 17 Architecture Decision Records (0001-0017)
+docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1-P3/3.7+P4/4.1+P5/5.1-P7/7.1)
 docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1-P7)
 docs/uml/<phase>/<slice>.md         <- Mermaid (3 Typen, + State Machine bei Bedarf)
 src/quant_trader/
   core/        types, errors, config, logging
   universe/    loader (CLI fertig)
-  data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI
-strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
-backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.6 + Risk 4.1 DONE)
+  data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI + instrument_search (NEU 3.7)
+strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner + docs (alle 2.1-2.6 DONE)
+backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.7 + Risk 4.1 DONE)
 risk/          (entfaellt; Risk-Logik lebt in backtest/engine.py, ADR-0010)
 live/          Broker + Realtime-Bar-Quellen + async LiveLoop + SQLite-Journal + CLI + Auto-Reconnect + Daily-Summary (5.1-5.3 DONE)
 storage/       SQLite (Trade-Journal lebt in live/journal.py)
@@ -314,7 +332,7 @@ config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
 Dockerfile + docker-compose.yml + .dockerignore (NEU P7)
 .github/workflows/ci.yml (CI mit test + docker jobs, NEU P7)
 scripts/entrypoint.sh (NEU P7)
-tests/         440 Tests, marker slow/live/integration; tests/ops/ fuer Deployment
+tests/         519 Tests, marker slow/live/integration; tests/ops/ fuer Deployment
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)
