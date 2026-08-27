@@ -39,7 +39,6 @@ dist/
 *.egg-info/
 *.egg
 
-reports/*.html
-reports/*.png
+reports/
 
 .uml-cache/
