@@ -293,9 +293,13 @@ def _render_run_form(
     )
     with st.sidebar:
         st.header("Backtest-Konfiguration")
-        strategy = st.selectbox("Strategie", strategy_names, index=strategy_index)
+        strategy = st.selectbox(
+            "Strategie", strategy_names, index=strategy_index, key="run_form_strategy"
+        )
         universe_options = [_CUSTOM_TICKER_OPTION, *preset_names]
-        universe_choice = st.selectbox("Universe-Preset", universe_options)
+        universe_choice = st.selectbox(
+            "Universe-Preset", universe_options, key="run_form_universe_preset"
+        )
         ticker = ""
         if universe_choice == _CUSTOM_TICKER_OPTION:
             _render_instrument_search(search_service)
@@ -386,13 +390,15 @@ def _render_read_mode(report_loader: ReportLoader) -> None:
     if not strategy_options:
         st.info("Keine laufenden Strategien gefunden.")
         return
-    selected_strategy = st.sidebar.selectbox("Strategie", strategy_options)
+    selected_strategy = st.sidebar.selectbox(
+        "Strategie", strategy_options, key="read_mode_strategy"
+    )
     filtered = [r for r in runs if r.strategy_name == selected_strategy]
     if not filtered:
         st.info(f"Keine Runs fuer Strategie '{selected_strategy}'.")
         return
     run_options = [r.run_id for r in filtered]
-    selected_run_id = st.sidebar.selectbox("Run", run_options)
+    selected_run_id = st.sidebar.selectbox("Run", run_options, key="read_mode_run")
     report = report_loader.load_run(selected_run_id)
     st.subheader(f"{report.strategy_name} - {report.run_id}")
     st.caption(
