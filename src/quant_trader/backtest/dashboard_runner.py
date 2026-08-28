@@ -27,6 +27,7 @@ from quant_trader.backtest.types import BacktestResult, FillMode
 from quant_trader.core.logging import get_logger
 from quant_trader.core.types import Granularity
 from quant_trader.strategies.loader import StrategyLoader
+from quant_trader.universe.dynamic_store import DynamicUniverseStore
 from quant_trader.universe.presets import PresetNotFoundError, PresetRepository
 
 log = get_logger(__name__)
@@ -45,10 +46,12 @@ class DashboardRunner:
         orchestrator: BacktestOrchestrator,
         loader: StrategyLoader,
         presets: PresetRepository,
+        dynamic_store: DynamicUniverseStore | None = None,
     ) -> None:
         self._orchestrator = orchestrator
         self._loader = loader
         self._presets = presets
+        self._dynamic_store = dynamic_store
 
     def run_request(
         self,
@@ -112,8 +115,18 @@ class DashboardRunner:
         if universe_preset:
             try:
                 preset = self._presets.get(universe_preset)
-            except PresetNotFoundError as exc:
-                raise InvalidParamsError(f"Universe-Preset '{exc.name}' nicht gefunden") from exc
+            except PresetNotFoundError:
+                if self._dynamic_store is None or not self._dynamic_store.exists(universe_preset):
+                    raise InvalidParamsError(
+                        f"Universe '{universe_preset}' nicht gefunden (weder Preset noch "
+                        "gespeichertes Universe)"
+                    ) from None
+                tickers = list(self._dynamic_store.load(universe_preset).tickers)
+                if not tickers:
+                    raise InvalidParamsError(
+                        f"Universe '{universe_preset}' enthaelt keine Ticker"
+                    ) from None
+                return "", universe_preset
             tickers = [t.upper() for t in preset.tickers]
             if not tickers:
                 raise InvalidParamsError(

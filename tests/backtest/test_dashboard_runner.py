@@ -14,7 +14,7 @@ arguments without going through the full backtest pipeline.
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import UTC, date
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -186,7 +186,7 @@ class TestDashboardRunnerValidation:
         orchestrator = MagicMock()
         runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
 
-        with pytest.raises(InvalidParamsError, match="Universe-Preset"):
+        with pytest.raises(InvalidParamsError, match="Universe 'does_not_exist' nicht gefunden"):
             runner.run_request(
                 strategy_name="sma_cross",
                 ticker="",
@@ -196,6 +196,67 @@ class TestDashboardRunnerValidation:
             )
 
         orchestrator.run.assert_not_called()
+
+    def test_dynamic_universe_fallback_when_no_preset_matches(
+        self,
+        loader: StrategyLoader,
+        presets: PresetRepository,
+        tmp_path: Path,
+    ) -> None:
+        from datetime import datetime
+
+        from quant_trader.universe.dynamic_store import DynamicUniverse, DynamicUniverseStore
+
+        dynamic_store = DynamicUniverseStore(tmp_path / "dynamic")
+        dynamic_store.save(
+            DynamicUniverse(
+                name="my_dynamic",
+                built_from_snapshot="snap-1",
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                filter_description="",
+                filters={},
+                tickers=("spy", "qqq"),
+            )
+        )
+        orchestrator = MagicMock()
+        orchestrator.run.return_value = _fake_result()
+        runner = DashboardRunner(
+            orchestrator=orchestrator, loader=loader, presets=presets, dynamic_store=dynamic_store
+        )
+
+        runner.run_request(
+            strategy_name="sma_cross",
+            ticker="",
+            universe_preset="my_dynamic",
+            start=date(2024, 1, 2),
+            end=date(2024, 3, 31),
+        )
+
+        _, kwargs = orchestrator.run.call_args
+        assert kwargs["universe"] == "my_dynamic"
+
+    def test_dynamic_universe_not_found_anywhere_raises_invalid_params(
+        self,
+        loader: StrategyLoader,
+        presets: PresetRepository,
+        tmp_path: Path,
+    ) -> None:
+        from quant_trader.universe.dynamic_store import DynamicUniverseStore
+
+        dynamic_store = DynamicUniverseStore(tmp_path / "dynamic")
+        orchestrator = MagicMock()
+        runner = DashboardRunner(
+            orchestrator=orchestrator, loader=loader, presets=presets, dynamic_store=dynamic_store
+        )
+
+        with pytest.raises(InvalidParamsError, match="Universe 'nowhere' nicht gefunden"):
+            runner.run_request(
+                strategy_name="sma_cross",
+                ticker="",
+                universe_preset="nowhere",
+                start=date(2024, 1, 2),
+                end=date(2024, 3, 31),
+            )
 
     def test_empty_universe_preset_raises_invalid_params(
         self,
