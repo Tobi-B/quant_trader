@@ -4,8 +4,8 @@ Streamlit is hard to test directly (it spins up a server), so we verify
 the contract via lightweight static checks on `scripts/backtest_dashboard.py`:
 - The script imports `StrategyDocLoader` from the strategy package.
 - The tab labels list contains the German "Strategien" label.
-- The dashboard tab tuple unpacks five tabs (Run-Form, Read-Mode,
-  Vergleich, Cache, Strategien).
+- The dashboard tab tuple unpacks six tabs (Run-Form, Read-Mode,
+  Vergleich, Cache, Katalog, Strategien).
 """
 
 from __future__ import annotations
@@ -35,9 +35,9 @@ def test_dashboard_has_strategies_tab_in_tabs_list() -> None:
     assert '"Strategien"' in source
 
 
-def test_dashboard_packs_five_tabs() -> None:
+def test_dashboard_packs_six_tabs() -> None:
     source = _load_dashboard_source()
-    assert "tab_run, tab_read, tab_comparison, tab_cache, tab_strategies" in source
+    assert "tab_run, tab_read, tab_comparison, tab_cache, tab_catalog, tab_strategies" in source
 
 
 def test_dashboard_calls_render_strategies_tab() -> None:
