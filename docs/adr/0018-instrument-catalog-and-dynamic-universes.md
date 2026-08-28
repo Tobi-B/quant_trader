@@ -1,6 +1,6 @@
 # ADR 0018: Zentraler Instrumentkatalog und dynamische Standard-Universen
 
-Status:     proposed
+Status:     accepted
 Datum:      2026-07-19
 Phase:      P1 Datenlayer (Erweiterung)
 Supersedes: -

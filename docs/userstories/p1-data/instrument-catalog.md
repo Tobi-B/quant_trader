@@ -139,8 +139,8 @@ Quelle:   Nutzeranforderung vom 2026-07-19
 
 ## Definition of Done
 
-- [ ] User Stories durch den Nutzer APPROVED.
-- [ ] Slice-bezogene NFRs geprüft und bei Bedarf ergänzt.
-- [ ] Structure-, Flow- und Sequence-UML mit den Anforderungen verknüpft und APPROVED.
-- [ ] Gherkin-Akzeptanzkriterien als Tests umgesetzt.
-- [ ] `make test`, `make lint` und `make smoke` sind grün.
+- [x] User Stories durch den Nutzer APPROVED.
+- [x] Slice-bezogene NFRs geprüft und bei Bedarf ergänzt.
+- [x] Structure-, Flow- und Sequence-UML mit den Anforderungen verknüpft und APPROVED.
+- [x] Gherkin-Akzeptanzkriterien als Tests umgesetzt.
+- [x] `make test`, `make lint` und `make smoke` sind grün.

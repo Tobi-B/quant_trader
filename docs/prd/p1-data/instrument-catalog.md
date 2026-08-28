@@ -2,7 +2,7 @@
 
 Phase:    P1 Datenlayer (Erweiterung)
 Slice:    1.7 Instrumentkatalog und dynamische Universen
-Status:   DRAFT
+Status:   DONE
 Author:   opencode
 Created:  2026-07-19
 Updated:  2026-07-19
@@ -182,32 +182,33 @@ wird mit diesem Slice auf APPROVED gesetzt).
 
 ## Done when
 
-- [ ] `FinancialModellingPrepProvider` um die Catalog-Methoden erweitert
-- [ ] `Instrument` um optionale Felder ergaenzt, Backward-Compat gewahrt
-- [ ] `CatalogUnavailableError` und `CatalogRefreshError` in
+- [x] `FinancialModellingPrepProvider` um die Catalog-Methoden erweitert
+- [x] `Instrument` um optionale Felder ergaenzt, Backward-Compat gewahrt
+- [x] `CatalogUnavailableError` und `CatalogRefreshError` in
       `core/errors.py` definiert
-- [ ] `catalog_path`, `dynamic_universes_path`, `catalog_max_age_hours`
+- [x] `catalog_path`, `dynamic_universes_path`, `catalog_max_age_hours`
       in `Settings`
-- [ ] `InstrumentCatalogSnapshotStore` mit atomarem Schreiben implementiert
-- [ ] `InstrumentCatalogService` mit `refresh`, `search`,
+- [x] `InstrumentCatalogSnapshotStore` mit atomarem Schreiben implementiert
+- [x] `InstrumentCatalogService` mit `refresh`, `search`,
       `list_filter_options`, `snapshot_status`,
       `build_dynamic_universe`, `build_standard_universe` implementiert
-- [ ] `DynamicUniverseStore` mit JSON-Persistenz implementiert
-- [ ] Universe-Resolution in `BacktestOrchestrator` und `DashboardRunner`
+- [x] `DynamicUniverseStore` mit JSON-Persistenz implementiert
+- [x] Universe-Resolution in `BacktestOrchestrator` und `DashboardRunner`
       ergaenzt
-- [ ] Dashboard-Tab "Katalog" mit Suche, Filter, Speichern und
+- [x] Dashboard-Tab "Katalog" mit Suche, Filter, Speichern und
       Standard-Universen-Buttons
-- [ ] CLI-Subcommands `catalog refresh/status/list` und
+- [x] CLI-Subcommands `catalog refresh/status/list` und
       `universe save/load/list` implementiert
-- [ ] Tests in `tests/data/test_catalog_*.py` und
+- [x] Tests in `tests/data/test_catalog_*.py` und
       `tests/universe/test_dynamic_store.py` mit mind. 23 neuen Tests
-- [ ] Dashboard-Smoke-Tests fuer `key=` und Catalog-Tab-Inhalte
-- [ ] `make test` gruen (519 alte + mind. 23 neue Tests)
-- [ ] `make lint` gruen
-- [ ] `make smoke` gruen
-- [ ] ADR-0018 Status `proposed` -> `accepted`
-- [ ] `docs/STATE.md` aktualisiert (Slice 1.7 auf DONE)
-- [ ] Conventional Commits: `docs(p1-data)`, `feat(p1-data)`,
+      (tatsaechlich 93 neue Tests ueber alle betroffenen Module)
+- [x] Dashboard-Smoke-Tests fuer `key=` und Catalog-Tab-Inhalte
+- [x] `make test` gruen (519 alte + 93 neue Tests = 612)
+- [x] `make lint` gruen
+- [x] `make smoke` gruen
+- [x] ADR-0018 Status `proposed` -> `accepted`
+- [x] `docs/STATE.md` aktualisiert (Slice 1.7 auf DONE)
+- [x] Conventional Commits: `docs(p1-data)`, `feat(p1-data)`,
       `test(p1-data)` (Small Commits erlaubt)
 
 ## Anti-Drift-Reminder
