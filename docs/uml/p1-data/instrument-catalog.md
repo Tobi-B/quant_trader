@@ -20,7 +20,15 @@ Stories:
 - US-P1.12 Standard-Universen dynamisch aktuell halten
 - US-P1.13 Taegliche Aktualisierung mit verlaesslichem Fallback
 
-Referenz: ADR-0018, PRD `docs/prd/p1-data/instrument-catalog.md`.
+Referenz: ADR-0018, ADR-0019, PRD `docs/prd/p1-data/instrument-catalog.md`.
+
+> **Nachtrag 2026-08-28 (ADR-0019):** Die Quellenschicht in den Diagrammen
+> zeigt `FinancialModellingPrepProvider`. Implementiert ist stattdessen
+> `PublicCatalogProvider` (NASDAQ Trader + Xetra + CoinGecko), der dasselbe
+> `CatalogProvider`-Protocol erfuellt - Struktur, Fluss und Sequenz bleiben
+> ansonsten unveraendert gueltig, nur der konkrete Provider hinter dem
+> Protocol ist ein anderer. Zusaetzlich gilt: `dax40` wird dynamisch
+> gebaut, `sp500` bleibt statisch (umgekehrt zur Darstellung unten).
 Erweitert `FinancialModellingPrepProvider` (Slice 1.5, ADR-0009) und die
 Universe-Resolution in `BacktestOrchestrator`/`DashboardRunner` (Slice 1.1).
 `PresetRepository`/`UniverseStore` bleiben unveraendert erhalten.

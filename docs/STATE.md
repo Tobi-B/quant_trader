@@ -10,11 +10,11 @@
 | Datum                 | 2026-08-28                                          |
 | Letzter Commit (main) | TBD (slice 1.7 commit)                              |
 | Branch                | `feat/p1-data-1.7-instrument-catalog`               |
-| Tests                 | 612/612 gruen (519 + 93 neue)                       |
+| Tests                 | 646/646 gruen (519 + 127 neue)                      |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P1 Datenlayer (Erweiterung)                         |
 | Aktiver Slice         | Slice 1.7 (Instrumentkatalog + dynamische Universen) - DONE |
-| Open Decision         | FMP-Plan-Upgrade fuer echte Katalogdaten (aktueller Key: HTTP 402 auf List-Endpoints) |
+| Open Decision         | `STOCKDATA_API_TOKEN` liefert HTTP 401 - Provider in der Bar-Fetch-Kette wirkungslos (eigener Slice) |
 
 ## Phasen-Tags (chronologisch)
 
@@ -319,13 +319,35 @@
   auf allen neuen/geaenderten Dateien (ausser vorbestehendem
   `scripts/backtest_dashboard.py:692`-Issue, out of scope). Manuell im
   Browser getestet: Tab rendert, Fehlerpfade (kein Snapshot, Provider-Fehler)
-  zeigen deutsche Meldungen ohne Crash. **Bekannte Einschraenkung**: der
-  aktuell konfigurierte FMP-Key liefert `HTTP 402` auf `stock-list`/
-  `etf-list`/etc. - diese Endpunkte sind auf dem aktuellen FMP-Plan nicht
-  verfuegbar (ADR-0018-Annahme "Free-Tier-kompatibel" stimmt fuer diesen
-  Account nicht; Code faengt das korrekt als Fallback/Fehler ab, liefert
-  aber ohne Plan-Upgrade keine echten Katalogdaten). ADR-0018 akzeptiert;
+  zeigen deutsche Meldungen ohne Crash. ADR-0018 akzeptiert;
   Tag `p1-data/1.7`.
+- **Slice 1.7 Nachbesserung (ADR-0019)**: Die ADR-0018-Annahme, die
+  FMP-Listen-Endpoints seien Free-Tier-kompatibel, war falsch - alle
+  liefern `HTTP 402 Restricted Endpoint` (auch `sp500-constituent`).
+  Die Quellenschicht wurde daher auf schluesselfreie Boersenquellen
+  umgestellt: neues Modul `data/public_catalog.py` mit
+  `NasdaqTraderSource` (US-Aktien/ETFs, Symboldatei), `XetraSource`
+  (EU-Instrumente + DAX/MDAX/SDAX-Handelsgruppen, ISIN/WKN) und
+  `CoinGeckoSource` (Top-250-Kryptos), zusammengefasst in
+  `PublicCatalogProvider`, der weiterhin das `CatalogProvider`-Protocol
+  erfuellt - Service-, Snapshot-, Universe- und UI-Schicht blieben
+  unveraendert. Ausfall einer einzelnen Quelle degradiert den Katalog,
+  statt ihn zu blockieren; nur der Ausfall aller Quellen loest den
+  Snapshot-Fallback aus. Innerhalb eines Refresh werden die Rohdaten
+  memoisiert (vorher dreifacher Download pro Refresh).
+  `search` normalisiert Gattungsaktien-Ticker (`-` -> `.`), sodass
+  `BRK.B` **und** `BRK-B` dasselbe Instrument finden (US-P1.10).
+  Standard-Universen drehen sich um: `dax40` ist jetzt **dynamisch**
+  aus der Xetra-Gruppe `DAX1` (43 Eintraege = 40 Indexmitglieder + die
+  jeweils zweite Gattung bei CBK/HEN/VOW, in der UI benannt), `etfs`
+  dynamisch, `sp500` bleibt **statisch** (lizenziertes Indexprodukt,
+  in keiner freien Quelle enthalten). 32 neue Tests
+  (`test_public_catalog.py`), 646/646 gruen; ruff + mypy --strict clean.
+  Live verifiziert: `catalog refresh` liefert 18.488 Instrumente
+  (13.141 US + 5.099 EU + 250 Krypto) in ~3s ohne API-Key;
+  `catalog list --query BRK.B` und `--query BRK-B` finden beide `BRK.B`;
+  Dashboard-Button "DAX 40 aktualisieren" schreibt 43 Ticker.
+  ADR-0019 akzeptiert.
 
 ## Was offen ist
 
@@ -340,7 +362,8 @@
 | Phase 1 Slice 1.6 (Cache Refresh)               | DONE      | Tag `p1-data/1.6`                   |
 | Phase 2 Slice 2.6 (Strategy Docs Viewer)       | DONE      | Tag `p2-strategies/2.6`             |
 | Phase 3 Slice 3.7 (Company Search)             | DONE      | Tag `p3-backtest/3.7`               |
-| Phase 1 Slice 1.7 (Instrumentkatalog + dynamische Universen) | DONE | Tag `p1-data/1.7`; FMP-Plan-Upgrade noetig fuer echte Katalogdaten |
+| Phase 1 Slice 1.7 (Instrumentkatalog + dynamische Universen) | DONE | Tag `p1-data/1.7`; Quellen via ADR-0019 schluesselfrei |
+| StockData.org-Token ungueltig (HTTP 401)       | offen     | eigener Slice: Token erneuern oder Provider entfernen |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | optional nach Phase 7                |
 | Phase 8+ (Cloud-Deployment, Production-Hardening) | spaeter | YAGNI fuer persoenlichen Use-Case |
 
@@ -351,14 +374,14 @@ docs/STATE.md                       <- diese Datei
 docs/00_dev_workflow.md             <- Loop-Regeln (DE)
 docs/architecture.md                <- Layered-Overview, Module-Tabelle, Datenfluss
 docs/requirements/nfrs.md           <- 14 NFRs mit IDs
-docs/adr/                           <- 18 Architecture Decision Records (0001-0018)
+docs/adr/                           <- 19 Architecture Decision Records (0001-0019)
 docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1-P3/3.7+P4/4.1+P5/5.1-P7/7.1+P1/1.7)
 docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1-P7)
 docs/uml/<phase>/<slice>.md         <- Mermaid (3 Typen, + State Machine bei Bedarf)
 src/quant_trader/
   core/        types, errors, config, logging
   universe/    loader + dynamic_store (NEU 1.7) (CLI fertig)
-  data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI + instrument_search (3.7) + instrument_catalog (NEU 1.7)
+  data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI + instrument_search (3.7) + instrument_catalog + public_catalog (NEU 1.7)
 strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner + docs (alle 2.1-2.6 DONE)
 backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.7 + Risk 4.1 DONE)
 risk/          (entfaellt; Risk-Logik lebt in backtest/engine.py, ADR-0010)
@@ -369,7 +392,7 @@ config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
 Dockerfile + docker-compose.yml + .dockerignore (NEU P7)
 .github/workflows/ci.yml (CI mit test + docker jobs, NEU P7)
 scripts/entrypoint.sh (NEU P7)
-tests/         612 Tests, marker slow/live/integration; tests/ops/ fuer Deployment
+tests/         646 Tests, marker slow/live/integration; tests/ops/ fuer Deployment
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)

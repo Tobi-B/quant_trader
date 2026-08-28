@@ -1,10 +1,18 @@
 # ADR 0018: Zentraler Instrumentkatalog und dynamische Standard-Universen
 
-Status:     accepted
+Status:     accepted (Abschnitte 1, 5 und 7 geaendert durch ADR-0019)
 Datum:      2026-07-19
 Phase:      P1 Datenlayer (Erweiterung)
 Supersedes: -
 Superseded by: -
+Geaendert durch: ADR-0019 (Katalogquelle: freie Boersenquellen statt FMP)
+
+> **Hinweis (2026-08-28):** Die Annahme, die FMP-Listen-Endpoints seien im
+> Free-Tier verfuegbar, hat sich als falsch erwiesen (HTTP 402). Die
+> Quellenschicht wurde in ADR-0019 auf NASDAQ Trader, Xetra und CoinGecko
+> umgestellt; `dax40` ist seitdem dynamisch und `sp500` statisch - also
+> genau umgekehrt zu Abschnitt 5 unten. Service-, Snapshot-, Universe- und
+> UI-Schicht dieses ADR gelten unveraendert.
 
 ## Context
 

@@ -71,7 +71,8 @@
 | `data.stockdata_provider`        | StockData.org-spezifische Calls                  | Cache, andere Provider               |
 | `data.financial_modelling_prep`  | FMP-spezifische Calls (Bars + Search, P3.7)      | Cache, andere Provider               |
 | `data.instrument_search`         | CompanySearchService + Protocol (P3.7)           | Streamlit                            |
-| `data.instrument_catalog`        | InstrumentCatalogService + SnapshotStore (P1.7)  | Streamlit                            |
+| `data.instrument_catalog`        | InstrumentCatalogService + SnapshotStore (P1.7)  | Streamlit, konkrete Quellen          |
+| `data.public_catalog`            | NASDAQ Trader + Xetra + CoinGecko (P1.7/ADR-0019)| Snapshot, Service                    |
 | `data.fallback`                  | Decorator fuer Provider-Kette                    | YAML, CLI                            |
 | `data.cache`                     | Parquet-Lese/-Schreib-Cache                      | Provider                             |
 | `data.factory`                   | ProviderChain-Assembly aus Settings              | CLI                                  |
@@ -152,10 +153,14 @@ Dashboard "Katalog"-Tab oder CLI: python -m quant_trader.universe catalog refres
   -> InstrumentCatalogService.refresh()
        -> Store.needs_refresh(max_age)?
             | nein -> aktueller Snapshot bleibt gueltig
-            | ja   -> FMP: stock/etf/fund/index/crypto-list + exchanges/sectors/countries
+            | ja   -> PublicCatalogProvider (ADR-0019, schluesselfrei):
+                        NASDAQ Trader (US-Aktien/ETFs)
+                        Xetra (EU-Instrumente + DAX/MDAX/SDAX-Gruppen)
+                        CoinGecko (Top-Kryptos)
+                      Ausfall einer Quelle degradiert, blockiert nicht
                  -> dedupe by (ticker, exchange, currency)
                  -> Store.write(df, snapshot_id)  [temp + os.replace, atomar]
-       -> bei Provider-Fehler + vorhandenem Snapshot: Fallback auf letzten Stand
+       -> bei Ausfall aller Quellen + vorhandenem Snapshot: Fallback auf letzten Stand
   -> InstrumentCatalogService.search(query, filters) -> list[Instrument]
   -> InstrumentCatalogService.build_dynamic_universe(name, filters)
        -> DynamicUniverseStore.save(universe)  [JSON, temp + os.replace]
@@ -219,7 +224,7 @@ Pro Layer ein Basis-Error:
 - `AGENTS.md` - Stack, Konventionen, Verification Gate
 - `docs/STATE.md` - aktueller Projektstand, Resume-Punkt
 - `docs/requirements/nfrs.md` - 14 NFRs mit IDs
-- `docs/adr/` - 18 Architecture Decision Records (0001-0018)
+- `docs/adr/` - 19 Architecture Decision Records (0001-0019)
 - `docs/prd/<phase>/<slice>.md` - Slice-PRDs
 - `docs/uml/<phase>/<slice>.md` - Mermaid UML-Diagramme
 - `docs/userstories/<phase>/<slice>.md` - User Stories

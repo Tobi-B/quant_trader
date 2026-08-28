@@ -2,7 +2,14 @@
 
 Phase:    P1 Datenlayer (Erweiterung)
 Slice:    1.7 Instrumentkatalog und dynamische Universen
-Status:   DONE
+Status:   DONE (Quellenschicht geaendert durch ADR-0019)
+
+> **Nachtrag 2026-08-28:** Die unter "Scope (IN)" geplanten
+> FMP-Katalog-Endpoints sind auf dem konfigurierten Plan gesperrt
+> (HTTP 402). Die Quellenschicht wurde auf NASDAQ Trader, Xetra und
+> CoinGecko umgestellt (`data/public_catalog.py`, ADR-0019). Die
+> FMP-Methoden bleiben implementiert und getestet, sind aber nicht
+> verdrahtet. `dax40` ist dadurch dynamisch, `sp500` statisch.
 Author:   opencode
 Created:  2026-07-19
 Updated:  2026-07-19
