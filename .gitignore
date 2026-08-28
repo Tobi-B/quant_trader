@@ -10,10 +10,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-data/raw/
-data/processed/
-data/*.parquet
-data/*.csv
+# Everything under the top-level data/ is generated at runtime (bar cache,
+# catalog snapshot, saved universes) - see README "data/ Parquet cache".
+# Leading slash is required: a bare `data/` would also swallow
+# src/quant_trader/data/ and tests/data/.
+/data/
 
 *.sqlite
 *.sqlite-journal
