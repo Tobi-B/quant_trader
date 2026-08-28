@@ -38,7 +38,11 @@ _SNAPSHOT_COLUMNS = [
     "is_active",
 ]
 
-_STANDARD_UNIVERSE_NAMES = ("sp500", "etfs")
+# Standard universes that can be rebuilt from the catalog. `sp500` is not
+# among them: S&P 500 membership is a licensed index product and none of the
+# key-free sources carry it, so it stays a static preset (ADR-0019).
+_STANDARD_UNIVERSE_NAMES = ("dax40", "etfs")
+_ETF_TYPES = ("etf", "etn", "etc")
 
 
 class CatalogProvider(Protocol):
@@ -216,7 +220,14 @@ class InstrumentCatalogService:
         )
 
     def _fetch_and_merge(self) -> pd.DataFrame:
-        log.info("catalog.refresh.provider", provider="fmp")
+        provider_name = getattr(self._provider, "name", type(self._provider).__name__)
+        log.info("catalog.refresh.provider", provider=provider_name)
+        # A composite provider may memoise its downloads across the several
+        # fetch_*_list calls one refresh makes; drop that cache first so a
+        # refresh really re-reads the sources instead of replaying the last run.
+        invalidate = getattr(self._provider, "invalidate", None)
+        if callable(invalidate):
+            invalidate()
         instruments: list[Instrument] = [
             *self._provider.fetch_stock_list(),
             *self._provider.fetch_etf_list(),
@@ -260,9 +271,18 @@ class InstrumentCatalogService:
         cleaned = query.strip().upper()
         mask = pd.Series(True, index=df.index)
         if cleaned:
-            mask &= df["ticker"].str.upper().eq(cleaned) | df["name"].str.upper().str.contains(
-                cleaned, regex=False
-            ) | df["ticker"].str.upper().str.contains(cleaned, regex=False)
+            # Class shares are written `BRK.B` on some venues and `BRK-B` on
+            # others; a trader typing either form means the same instrument,
+            # so both are matched against a separator-normalised ticker.
+            tickers = df["ticker"].str.upper()
+            normalised = tickers.str.replace("-", ".", regex=False)
+            needle = _normalise_ticker(cleaned)
+            mask &= (
+                tickers.eq(cleaned)
+                | normalised.eq(needle)
+                | tickers.str.contains(cleaned, regex=False)
+                | df["name"].str.upper().str.contains(cleaned, regex=False)
+            )
         mask &= _optional_eq(df, "instrument_type", instrument_type)
         mask &= _optional_eq(df, "exchange", exchange)
         mask &= _optional_eq(df, "country", country)
@@ -277,7 +297,7 @@ class InstrumentCatalogService:
             exchanges=_unique_sorted(df["exchange"]),
             countries=_unique_sorted(df["country"]),
             sectors=_unique_sorted(df["sector"]),
-            indices=tuple(sorted((*_STANDARD_UNIVERSE_NAMES, "nasdaq", "dowjones"))),
+            indices=tuple(sorted((*_STANDARD_UNIVERSE_NAMES, "mdax", "sdax"))),
         )
 
     def snapshot_status(self) -> CatalogStatus:
@@ -321,17 +341,20 @@ class InstrumentCatalogService:
 
     def build_standard_universe(self, name: str) -> DynamicUniverse:
         if name not in _STANDARD_UNIVERSE_NAMES:
-            raise ValueError(f"Unbekanntes Standard-Universe: {name}")
+            raise ValueError(
+                f"Unbekanntes Standard-Universe: {name} "
+                f"(dynamisch verfuegbar: {', '.join(_STANDARD_UNIVERSE_NAMES)})"
+            )
         df = self._require_snapshot()
 
         if name == "etfs":
-            tickers = tuple(sorted(df.loc[df["instrument_type"] == "etf", "ticker"]))
-            description = "ETFs aus dem aktuellen Katalog"
+            tickers = tuple(sorted(df.loc[df["instrument_type"].isin(_ETF_TYPES), "ticker"]))
+            description = "ETFs/ETNs/ETCs aus dem aktuellen Katalog"
         else:
-            members = set(self._provider.fetch_index_membership("sp500"))
+            members = set(self._provider.fetch_index_membership("dax40"))
             stock_tickers = set(df.loc[df["instrument_type"] == "stock", "ticker"])
             tickers = tuple(sorted(members & stock_tickers))
-            description = "S&P 500 Mitglieder aus dem aktuellen Katalog"
+            description = "DAX-Handelsgruppe der Deutschen Boerse (inkl. beider Aktiengattungen)"
 
         if not tickers:
             raise EmptyUniverseSelectionError(name)
@@ -352,6 +375,11 @@ class InstrumentCatalogService:
         if df is None or df.empty:
             raise CatalogUnavailableError(None, "kein Snapshot vorhanden")
         return df
+
+
+def _normalise_ticker(ticker: str) -> str:
+    """Collapse the dot/dash class-share spelling to one form."""
+    return ticker.strip().upper().replace("-", ".")
 
 
 def _optional_eq(df: pd.DataFrame, column: str, value: str | None) -> pd.Series:

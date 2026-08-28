@@ -28,7 +28,7 @@ class _FakeCatalogProvider:
         funds: list[Instrument] | None = None,
         indices: list[Instrument] | None = None,
         crypto: list[Instrument] | None = None,
-        sp500_members: list[str] | None = None,
+        index_members: list[str] | None = None,
         raise_on: str | None = None,
         exc: Exception | None = None,
     ) -> None:
@@ -37,7 +37,7 @@ class _FakeCatalogProvider:
         self._funds = funds or []
         self._indices = indices or []
         self._crypto = crypto or []
-        self._sp500_members = sp500_members or []
+        self._index_members = index_members or []
         self._raise_on = raise_on
         self._exc = exc or ProviderError("fmp", "boom")
 
@@ -75,7 +75,7 @@ class _FakeCatalogProvider:
         return ["US"]
 
     def fetch_index_membership(self, index_id: str) -> list[str]:
-        return self._sp500_members
+        return self._index_members
 
 
 def _instrument(ticker: str, *, itype: str, country: str = "", sector: str = "") -> Instrument:
@@ -266,26 +266,43 @@ def test_build_standard_universe_etfs(tmp_path: Path) -> None:
     assert universe.tickers == ("QQQ", "SPY")
 
 
-def test_build_standard_universe_sp500_intersects_membership(tmp_path: Path) -> None:
+def test_build_standard_universe_dax40_intersects_membership(tmp_path: Path) -> None:
     provider = _FakeCatalogProvider(
-        stocks=[_instrument("AAPL", itype="stock"), _instrument("MSFT", itype="stock")],
-        sp500_members=["AAPL", "TSLA"],
+        stocks=[_instrument("SAP", itype="stock"), _instrument("MSFT", itype="stock")],
+        index_members=["SAP", "BMW"],
     )
     service = _service(tmp_path, provider)
     service.refresh()
 
-    universe = service.build_standard_universe("sp500")
+    universe = service.build_standard_universe("dax40")
 
-    assert universe.tickers == ("AAPL",)
+    assert universe.tickers == ("SAP",)
 
 
-def test_build_standard_universe_unknown_name_raises(tmp_path: Path) -> None:
+def test_build_standard_universe_etfs_includes_etn_and_etc(tmp_path: Path) -> None:
+    provider = _FakeCatalogProvider(
+        etfs=[
+            _instrument("SPY", itype="etf"),
+            _instrument("XETN", itype="etn"),
+            _instrument("XETC", itype="etc"),
+        ],
+    )
+    service = _service(tmp_path, provider)
+    service.refresh()
+
+    universe = service.build_standard_universe("etfs")
+
+    assert universe.tickers == ("SPY", "XETC", "XETN")
+
+
+def test_build_standard_universe_sp500_is_not_dynamic(tmp_path: Path) -> None:
+    """S&P 500 membership is licensed; no key-free source carries it."""
     provider = _FakeCatalogProvider(stocks=[_instrument("AAPL", itype="stock")])
     service = _service(tmp_path, provider)
     service.refresh()
 
-    with pytest.raises(ValueError):
-        service.build_standard_universe("dax40")
+    with pytest.raises(ValueError, match="sp500"):
+        service.build_standard_universe("sp500")
 
 
 def test_list_filter_options_derived_from_snapshot(tmp_path: Path) -> None:
@@ -301,4 +318,4 @@ def test_list_filter_options_derived_from_snapshot(tmp_path: Path) -> None:
     assert options.instrument_types == ("etf", "stock")
     assert options.countries == ("US",)
     assert options.sectors == ("Technology",)
-    assert "sp500" in options.indices
+    assert "dax40" in options.indices
