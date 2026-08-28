@@ -14,11 +14,11 @@ from quant_trader.core.errors import (
     EmptyUniverseSelectionError,
 )
 from quant_trader.core.logging import configure_logging, get_logger
-from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
 from quant_trader.data.instrument_catalog import (
     InstrumentCatalogService,
     InstrumentCatalogSnapshotStore,
 )
+from quant_trader.data.public_catalog import PublicCatalogProvider
 from quant_trader.universe.dynamic_store import DynamicUniverseStore, UniverseAlreadyExistsError
 from quant_trader.universe.loader import UniverseLoader
 from quant_trader.universe.presets import PresetNotFoundError, PresetRepository
@@ -30,7 +30,7 @@ log = get_logger(__name__)
 def _build_catalog_service() -> InstrumentCatalogService:
     settings = get_settings()
     return InstrumentCatalogService(
-        FinancialModellingPrepProvider(api_key=settings.fmp_api_key),
+        PublicCatalogProvider(),
         InstrumentCatalogSnapshotStore(settings.catalog_path),
         DynamicUniverseStore(settings.dynamic_universes_path),
         refresh_interval=timedelta(hours=settings.catalog_max_age_hours),

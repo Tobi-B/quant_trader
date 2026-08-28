@@ -41,9 +41,16 @@ def test_dashboard_catalog_handles_unavailable_catalog_in_german() -> None:
 
 def test_dashboard_catalog_standard_universe_buttons() -> None:
     source = _load_dashboard_source()
-    assert 'build_standard_universe("sp500")' in source
+    assert 'build_standard_universe("dax40")' in source
     assert 'build_standard_universe("etfs")' in source
-    assert "DAX 40 bleibt statisch" in source
+    assert "S&P 500 bleibt statisch" in source
+
+
+def test_dashboard_uses_public_catalog_provider_not_fmp() -> None:
+    """The catalog must not be wired to FMP: its list endpoints are paywalled."""
+    source = _load_dashboard_source()
+    assert "PublicCatalogProvider()" in source
+    assert "InstrumentCatalogService(\n        FinancialModellingPrepProvider" not in source
 
 
 def test_dashboard_catalog_confirms_overwrite() -> None:

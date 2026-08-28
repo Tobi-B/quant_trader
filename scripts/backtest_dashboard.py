@@ -13,6 +13,8 @@ Tabs:
 - "Vergleich" (US-P3.10): compare the latest report for every registered strategy.
 - "Cache" (US-P1.9): bulk refresh the parquet cache (alle gecachten Tickers,
   Universe-Preset, freie Ticker-Liste).
+- "Katalog" (US-P1.10..13): zentraler Instrumentkatalog aus NASDAQ Trader,
+  Xetra und CoinGecko; Suche, Filter, benannte Universen, Standard-Universen.
 - "Strategien" (US-P2.8): pro registrierter Strategie eine README mit
   Parametern und Risiken.
 """
@@ -72,6 +74,7 @@ from quant_trader.data.instrument_search import (
     CompanySearchService,
     FmpProfilePhantomValidator,
 )
+from quant_trader.data.public_catalog import PublicCatalogProvider
 from quant_trader.data.refresh import RefreshSummary, refresh_tickers
 from quant_trader.strategies import StrategyDocLoader, default_loader
 from quant_trader.strategies.loader import StrategyLoader
@@ -139,7 +142,7 @@ def _build_services() -> tuple[
         phantom_validator=FmpProfilePhantomValidator(api_key=settings.fmp_api_key),
     )
     catalog_service = InstrumentCatalogService(
-        FinancialModellingPrepProvider(api_key=settings.fmp_api_key),
+        PublicCatalogProvider(),
         InstrumentCatalogSnapshotStore(settings.catalog_path),
         dynamic_store,
         refresh_interval=timedelta(hours=settings.catalog_max_age_hours),
@@ -903,13 +906,18 @@ def _render_catalog_search(
 def _render_standard_universes(catalog_service: InstrumentCatalogService) -> None:
     st.subheader("Standard-Universen")
     cols = st.columns(3)
-    if cols[0].button("S&P 500 aktualisieren", key="catalog_standard_sp500"):
+    if cols[0].button("DAX 40 aktualisieren", key="catalog_standard_dax40"):
         try:
-            universe = catalog_service.build_standard_universe("sp500")
+            universe = catalog_service.build_standard_universe("dax40")
         except (CatalogUnavailableError, EmptyUniverseSelectionError) as exc:
-            st.error(f"S&P 500 konnte nicht gebaut werden: {exc}")
+            st.error(f"DAX 40 konnte nicht gebaut werden: {exc}")
         else:
-            st.success(f"'sp500' aktualisiert ({len(universe.tickers)} Ticker).")
+            st.success(f"'dax40' aktualisiert ({len(universe.tickers)} Ticker).")
+            st.caption(
+                "Quelle ist die DAX-Handelsgruppe der Deutschen Boerse. Sie enthaelt "
+                "auch die jeweils zweite Aktiengattung (z.B. VOW und VOW3), also "
+                "etwas mehr als die 40 Indexmitglieder."
+            )
     if cols[1].button("ETFs aktualisieren", key="catalog_standard_etfs"):
         try:
             universe = catalog_service.build_standard_universe("etfs")
@@ -917,7 +925,10 @@ def _render_standard_universes(catalog_service: InstrumentCatalogService) -> Non
             st.error(f"ETFs konnten nicht gebaut werden: {exc}")
         else:
             st.success(f"'etfs' aktualisiert ({len(universe.tickers)} Ticker).")
-    cols[2].info("DAX 40 bleibt statisch (kein FMP-Index-Endpoint verfuegbar).")
+    cols[2].info(
+        "S&P 500 bleibt statisch: die Indexzusammensetzung ist ein "
+        "lizenziertes Produkt und in keiner freien Quelle enthalten."
+    )
 
 
 def _render_catalog_tab(
@@ -926,8 +937,9 @@ def _render_catalog_tab(
 ) -> None:
     st.subheader("Instrumentkatalog")
     st.caption(
-        "Zentraler, taeglich aktualisierter Katalog aller bei Financial Modeling Prep "
-        "gelisteten Aktien, ETFs, Fonds, Indizes und Kryptowaehrungen."
+        "Zentraler, taeglich aktualisierter Katalog aus NASDAQ Trader (US-Aktien "
+        "und -ETFs), Deutsche Boerse Xetra (EU-Instrumente inkl. DAX) und "
+        "CoinGecko (Kryptowaehrungen)."
     )
     status = catalog_service.snapshot_status()
     _render_catalog_status(status, catalog_service)
