@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from quant_trader.core.errors import ProviderError, RateLimitedError, TickerNotFoundError
-from quant_trader.core.types import Bar, Granularity
+from quant_trader.core.types import Bar, ExchangeDescriptor, Granularity
 from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
 
 
@@ -195,3 +195,136 @@ def test_adjclose_falls_back_to_close_when_missing() -> None:
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 2), Granularity.DAILY)
 
     assert bars[0].adjusted_close == bars[0].close == 100.5
+
+
+def test_fetch_stock_list_parses_instruments() -> None:
+    payload = [
+        {"symbol": "AAPL", "name": "Apple Inc.", "exchangeShortName": "NASDAQ"},
+        {"symbol": "BRK.B", "name": "Berkshire Hathaway Inc.", "exchangeShortName": "NYSE"},
+    ]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_stock_list()
+
+    assert [i.ticker for i in instruments] == ["AAPL", "BRK.B"]
+    assert all(i.instrument_type == "stock" for i in instruments)
+    assert session.last_url == (
+        "https://financialmodelingprep.com/stable/stock-list?apikey=test-key"
+    )
+
+
+def test_fetch_etf_list_parses_instruments() -> None:
+    payload = [{"symbol": "SPY", "name": "SPDR S&P 500", "exchangeShortName": "NYSEARCA"}]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_etf_list()
+
+    assert instruments[0].instrument_type == "etf"
+    assert "/stable/etf-list?" in (session.last_url or "")
+
+
+def test_fetch_index_list_parses_instruments() -> None:
+    payload = [{"symbol": "^GSPC", "name": "S&P 500"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_index_list()
+
+    assert instruments[0].instrument_type == "index"
+    assert instruments[0].exchange == "Unbekannt"
+
+
+def test_fetch_crypto_list_parses_instruments() -> None:
+    payload = [{"symbol": "BTCUSD", "name": "Bitcoin USD", "currency": "USD"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_crypto_list()
+
+    assert instruments[0].instrument_type == "crypto"
+    assert instruments[0].currency == "USD"
+
+
+def test_fetch_fund_list_returns_empty_on_http_403() -> None:
+    provider, _ = _provider(_FakeResponse(403, {}))
+
+    instruments = provider.fetch_fund_list()
+
+    assert instruments == []
+
+
+def test_fetch_fund_list_returns_empty_on_empty_payload() -> None:
+    provider, _ = _provider(_FakeResponse(200, []))
+
+    assert provider.fetch_fund_list() == []
+
+
+def test_fetch_fund_list_parses_when_available() -> None:
+    payload = [{"symbol": "VTSAX", "name": "Vanguard Total Stock"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_fund_list()
+
+    assert instruments[0].instrument_type == "fund"
+
+
+def test_fetch_exchanges_parses_descriptors() -> None:
+    payload = [{"exchange": "NASDAQ", "name": "NASDAQ Global Market"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    exchanges = provider.fetch_exchanges()
+
+    assert exchanges == [ExchangeDescriptor(code="NASDAQ", name="NASDAQ Global Market")]
+
+
+def test_fetch_sectors_returns_sorted_unique_strings() -> None:
+    payload = [{"sector": "Technology"}, {"sector": "Energy"}, {"sector": "Technology"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    assert provider.fetch_sectors() == ["Energy", "Technology"]
+
+
+def test_fetch_countries_returns_sorted_unique_strings() -> None:
+    payload = ["US", "DE", "US"]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    assert provider.fetch_countries() == ["DE", "US"]
+
+
+def test_fetch_index_membership_returns_uppercased_tickers() -> None:
+    payload = [{"symbol": "aapl"}, {"symbol": "MSFT"}]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    tickers = provider.fetch_index_membership("sp500")
+
+    assert tickers == ["AAPL", "MSFT"]
+    assert "/stable/sp500-constituent?" in (session.last_url or "")
+
+
+def test_fetch_index_membership_unknown_index_raises_provider_error() -> None:
+    provider, _ = _provider(_FakeResponse(200, []))
+
+    with pytest.raises(ProviderError):
+        provider.fetch_index_membership("dax40")
+
+
+def test_catalog_methods_rate_limited() -> None:
+    provider, _ = _provider(_FakeResponse(429, {}))
+
+    with pytest.raises(RateLimitedError):
+        provider.fetch_stock_list()
+
+
+def test_catalog_methods_no_api_key_raises_provider_error() -> None:
+    provider = FinancialModellingPrepProvider(api_key="")
+
+    with pytest.raises(ProviderError):
+        provider.fetch_stock_list()
+
+
+def test_catalog_methods_network_error_raises_provider_error() -> None:
+    provider = FinancialModellingPrepProvider(
+        api_key="test-key",
+        session=cast(requests.Session, _BrokenSession()),
+    )
+
+    with pytest.raises(ProviderError):
+        provider.fetch_etf_list()
