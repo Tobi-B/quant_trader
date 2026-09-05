@@ -77,6 +77,7 @@ from quant_trader.data.instrument_search import (
 from quant_trader.data.public_catalog import PublicCatalogProvider
 from quant_trader.data.refresh import RefreshSummary, refresh_tickers
 from quant_trader.strategies import StrategyDocLoader, default_loader
+from quant_trader.strategies.base import StrategyBase
 from quant_trader.strategies.loader import StrategyLoader
 from quant_trader.universe.dynamic_store import DynamicUniverseStore
 from quant_trader.universe.presets import PresetRepository
@@ -88,6 +89,7 @@ log = get_logger(__name__)
 
 _REPORTS_DIR = Path("./reports")
 _CUSTOM_TICKER_OPTION = "(Custom-Ticker)"
+_STRATEGY_DEFAULT_UNIVERSE_OPTION = "(Strategie-Standard)"
 _RUN_FORM_TAB = "Run-Form"
 _READ_MODE_TAB = "Read-Mode"
 _COMPARISON_TAB = "Vergleich"
@@ -316,6 +318,7 @@ def _render_run_form(
     search_service: CompanySearchService,
     strategy_names: list[str],
     preset_names: list[str],
+    loader: StrategyLoader,
 ) -> None:
     st.subheader("Neuen Backtest starten")
     if not strategy_names:
@@ -333,17 +336,33 @@ def _render_run_form(
         strategy = st.selectbox(
             "Strategie", strategy_names, index=strategy_index, key="run_form_strategy"
         )
-        universe_options = [_CUSTOM_TICKER_OPTION, *preset_names]
-        universe_choice = st.selectbox(
-            "Universe-Preset", universe_options, key="run_form_universe_preset"
-        )
+        strategy_cls = loader.get_class(strategy)
+        is_single_ticker = issubclass(strategy_cls, StrategyBase)
+        supports_override = bool(getattr(strategy_cls, "supports_universe_override", True))
+
         ticker = ""
-        if universe_choice == _CUSTOM_TICKER_OPTION:
+        universe_choice = _CUSTOM_TICKER_OPTION
+        if is_single_ticker:
+            # A single-ticker strategy runs on exactly one ticker - there is
+            # no "universe" concept for it, so Universe-Preset never applies.
             _render_instrument_search(search_service)
             ticker = st.text_input(
                 "Ticker",
                 key=_TICKER_KEY,
                 placeholder="z.B. SPY",
+            )
+        elif supports_override:
+            # Multi-ticker strategies never read the Ticker field (the
+            # strategy is instantiated without it), so only a universe
+            # selector makes sense here - not a ticker input.
+            universe_options = [_STRATEGY_DEFAULT_UNIVERSE_OPTION, *preset_names]
+            universe_choice = st.selectbox(
+                "Universe-Preset", universe_options, key="run_form_universe_preset"
+            )
+        else:
+            st.caption(
+                f"'{strategy}' bezieht sein Universe aus mehreren eigenen Parametern "
+                "(siehe Tab 'Strategien') und kann hier nicht ueberschrieben werden."
             )
         with st.form(key="run_form"):
             today = date.today()
@@ -360,7 +379,9 @@ def _render_run_form(
         return
 
     universe_preset: str | None = (
-        None if universe_choice == _CUSTOM_TICKER_OPTION else universe_choice
+        None
+        if universe_choice in (_CUSTOM_TICKER_OPTION, _STRATEGY_DEFAULT_UNIVERSE_OPTION)
+        else universe_choice
     )
     st.session_state["running"] = True
     log_container = st.empty()
@@ -422,12 +443,13 @@ def _render_read_mode(report_loader: ReportLoader) -> None:
         )
         return
 
-    st.sidebar.header("Backtest-Auswahl")
+    st.subheader("Backtest-Auswahl")
     strategy_options = sorted({r.strategy_name for r in runs if r.strategy_name})
     if not strategy_options:
         st.info("Keine laufenden Strategien gefunden.")
         return
-    selected_strategy = st.sidebar.selectbox(
+    select_cols = st.columns(2)
+    selected_strategy = select_cols[0].selectbox(
         "Strategie", strategy_options, key="read_mode_strategy"
     )
     filtered = [r for r in runs if r.strategy_name == selected_strategy]
@@ -435,7 +457,8 @@ def _render_read_mode(report_loader: ReportLoader) -> None:
         st.info(f"Keine Runs fuer Strategie '{selected_strategy}'.")
         return
     run_options = [r.run_id for r in filtered]
-    selected_run_id = st.sidebar.selectbox("Run", run_options, key="read_mode_run")
+    selected_run_id = select_cols[1].selectbox("Run", run_options, key="read_mode_run")
+    st.divider()
     report = report_loader.load_run(selected_run_id)
     st.subheader(f"{report.strategy_name} - {report.run_id}")
     st.caption(
@@ -612,7 +635,7 @@ def _render_strategies_tab(doc_loader: StrategyDocLoader, strategy_loader: Strat
 
     documented = 0
     for name in names:
-        cls = strategy_loader._registry[name]
+        cls = strategy_loader.get_class(name)
         version = getattr(cls, "version", "1.0.0")
         st.subheader(f"{name} (v{version})")
         doc = doc_loader.load(name)
@@ -965,6 +988,7 @@ def main() -> None:
         dynamic_store,
     ) = _build_services()
     cache, provider, cache_preset_names = _build_cache_services()
+    loader = default_loader()
     tab_labels = [
         _RUN_FORM_TAB,
         _READ_MODE_TAB,
@@ -979,7 +1003,7 @@ def main() -> None:
         key="tabs",
     )
     with tab_run:
-        _render_run_form(runner, search_service, strategy_names, preset_names)
+        _render_run_form(runner, search_service, strategy_names, preset_names, loader)
     with tab_read:
         _render_read_mode(report_loader)
     with tab_comparison:
@@ -990,7 +1014,7 @@ def main() -> None:
         _render_catalog_tab(catalog_service, dynamic_store)
     with tab_strategies:
         doc_loader = StrategyDocLoader(get_settings().strategy_docs_dir)
-        _render_strategies_tab(doc_loader, default_loader())
+        _render_strategies_tab(doc_loader, loader)
 
 
 if __name__ == "__main__":

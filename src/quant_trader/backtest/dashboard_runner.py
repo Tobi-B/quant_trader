@@ -26,6 +26,7 @@ from quant_trader.backtest.orchestrator import BacktestOrchestrator
 from quant_trader.backtest.types import BacktestResult, FillMode
 from quant_trader.core.logging import get_logger
 from quant_trader.core.types import Granularity
+from quant_trader.strategies.base import StrategyBase
 from quant_trader.strategies.loader import StrategyLoader
 from quant_trader.universe.dynamic_store import DynamicUniverseStore
 from quant_trader.universe.presets import PresetNotFoundError, PresetRepository
@@ -69,8 +70,9 @@ class DashboardRunner:
             )
             raise UnknownStrategyError(strategy_name, self._loader.registered_names())
 
+        is_single_ticker = issubclass(self._loader.get_class(strategy_name), StrategyBase)
         resolved_ticker, resolved_universe = self._resolve_ticker(
-            ticker=ticker, universe_preset=universe_preset
+            ticker=ticker, universe_preset=universe_preset, is_single_ticker=is_single_ticker
         )
 
         run_id = self._generate_run_id()
@@ -111,6 +113,7 @@ class DashboardRunner:
         self,
         ticker: str,
         universe_preset: str | None,
+        is_single_ticker: bool,
     ) -> tuple[str, str | None]:
         if universe_preset:
             try:
@@ -133,6 +136,11 @@ class DashboardRunner:
                     f"Universe-Preset '{universe_preset}' enthaelt keine Ticker"
                 )
             return "", universe_preset
+
+        if not is_single_ticker:
+            # No override given: let the orchestrator fall back to (and
+            # validate) the multi-ticker strategy's own default universe.
+            return "", None
 
         cleaned = ticker.strip().upper()
         if not cleaned:
