@@ -155,6 +155,13 @@ class BacktestOrchestrator:
         universe_arg: str | None,
     ) -> list[str]:
         if universe_arg:
+            if not strategy.supports_universe_override:
+                raise InvalidParamsError(
+                    f"Strategie '{strategy.name}' bezieht ihr Universe aus mehreren "
+                    "eigenen Parametern (z.B. long_universe/short_universe) und "
+                    "unterstuetzt kein --universe/Universe-Preset. Bitte die "
+                    "Parameter in der Strategie-Konfiguration anpassen."
+                )
             from quant_trader.core.config import get_settings
             from quant_trader.universe.dynamic_store import DynamicUniverseStore
 

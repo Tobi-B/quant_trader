@@ -94,6 +94,12 @@ def test_default_params_and_combined_universe() -> None:
     ]
 
 
+def test_does_not_support_universe_override() -> None:
+    """Two independent baskets can't be replaced by a single --universe arg
+    without silently starving the strategy of its own required tickers."""
+    assert LongCapitalShortLaborStrategy().supports_universe_override is False
+
+
 def test_warmup_bars_default() -> None:
     strategy = LongCapitalShortLaborStrategy()
     assert strategy.warmup_bars() == 6 * _TRADING_DAYS_PER_MONTH

@@ -109,6 +109,10 @@ def test_concrete_multi_ticker_subclass_works() -> None:
     assert signals == []
 
 
+def test_multi_ticker_base_supports_universe_override_by_default() -> None:
+    assert _SampleMultiTicker().supports_universe_override is True
+
+
 def test_default_version_is_one_zero() -> None:
     class _Unversioned(StrategyBase):
         name = "unversioned"

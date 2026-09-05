@@ -35,6 +35,10 @@ _DEFAULT_SHORT_UNIVERSE: list[str] = ["XRT", "XLI", "IYT", "JETS"]
 class LongCapitalShortLaborStrategy(MultiTickerStrategyBase):
     name: ClassVar[str] = "long_capital_short_labor"
     version: ClassVar[str] = "1.0.0"
+    # Two independent baskets (long_universe/short_universe), not the single
+    # flat universe --universe/Universe-Preset can replace. See
+    # MultiTickerStrategyBase.supports_universe_override.
+    supports_universe_override: ClassVar[bool] = False
     default_params: ClassVar[dict[str, Any]] = {
         "long_universe": list(_DEFAULT_LONG_UNIVERSE),
         "short_universe": list(_DEFAULT_SHORT_UNIVERSE),

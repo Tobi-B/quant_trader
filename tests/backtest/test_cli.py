@@ -11,7 +11,11 @@ import pytest
 
 from quant_trader.core.types import Bar, Granularity
 from quant_trader.data.cache import ParquetCache
-from quant_trader.strategies import EtfRotationStrategy, SmaCrossStrategy
+from quant_trader.strategies import (
+    EtfRotationStrategy,
+    LongCapitalShortLaborStrategy,
+    SmaCrossStrategy,
+)
 from quant_trader.strategies.base import MultiTickerStrategyBase
 from quant_trader.strategies.loader import StrategyLoader
 from quant_trader.strategies.types import PortfolioState, Signal
@@ -67,7 +71,10 @@ def strategies_yaml(tmp_path: Path) -> Path:
         "sma_cross:\n  params: {fast: 5, slow: 10}\n"
         "etf_rotation:\n  params:\n    universe: [SPY, AGG]\n    top_n: 1\n    "
         "lookback_months: 1\n    rebalance_freq: monthly\n"
-        "no_universe_multi:\n  params: {}\n",
+        "no_universe_multi:\n  params: {}\n"
+        "long_capital_short_labor:\n  params:\n    long_universe: [SPY]\n    "
+        "short_universe: [AGG]\n    lookback_months: 1\n    entry_threshold: 0.02\n"
+        "    exit_threshold: 0.0\n    rebalance_freq: monthly\n",
         encoding="utf-8",
     )
     return cfg
@@ -86,6 +93,7 @@ def loader(strategies_yaml: Path) -> StrategyLoader:
     ldr.register(SmaCrossStrategy)
     ldr.register(EtfRotationStrategy)
     ldr.register(_NoUniverseMultiStrategy)
+    ldr.register(LongCapitalShortLaborStrategy)
     return ldr
 
 
@@ -809,6 +817,33 @@ class TestOrchestratorDirect:
                 ticker="SPY",
                 start=date(2024, 3, 31),
                 end=date(2024, 1, 2),
+            )
+
+    def test_orchestrator_rejects_universe_override_for_multi_basket_strategy(
+        self,
+        tmp_path: Path,
+        loader: StrategyLoader,
+    ) -> None:
+        """long_capital_short_labor computes its universe from long_universe +
+        short_universe; a --universe override would make the orchestrator fetch
+        bars for the wrong tickers and the strategy would silently never warm
+        up (flat equity, zero trades) instead of failing loudly."""
+        from quant_trader.backtest.errors import InvalidParamsError
+        from quant_trader.backtest.orchestrator import BacktestOrchestrator
+
+        cache = ParquetCache(tmp_path / "data")
+        _write_cache(cache, "SPY", _trend_bars(60))
+        _write_cache(cache, "AGG", _trend_bars(60))
+        orchestrator = BacktestOrchestrator(
+            cache=cache, loader=loader, reports_dir=tmp_path / "reports"
+        )
+        with pytest.raises(InvalidParamsError, match="long_capital_short_labor"):
+            orchestrator.run(
+                "rid",
+                strategy_name="long_capital_short_labor",
+                universe="sp500",
+                start=date(2024, 1, 2),
+                end=date(2024, 3, 31),
             )
 
     def test_orchestrator_no_report_skips_files(
