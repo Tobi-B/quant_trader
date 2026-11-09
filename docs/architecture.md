@@ -69,6 +69,10 @@
 | `data.alpha_vantage`             | AlphaVantage-spezifische HTTP-Calls              | Cache, andere Provider               |
 | `data.yfinance_provider`         | YFinance-spezifische Calls                       | Cache, andere Provider               |
 | `data.stockdata_provider`        | StockData.org-spezifische Calls                  | Cache, andere Provider               |
+| `data.financial_modelling_prep`  | FMP-spezifische Calls (Bars + Search, P3.7)      | Cache, andere Provider               |
+| `data.instrument_search`         | CompanySearchService + Protocol (P3.7)           | Streamlit                            |
+| `data.instrument_catalog`        | InstrumentCatalogService + SnapshotStore (P1.7)  | Streamlit, konkrete Quellen          |
+| `data.public_catalog`            | NASDAQ Trader + Xetra + CoinGecko (P1.7/ADR-0019)| Snapshot, Service                    |
 | `data.fallback`                  | Decorator fuer Provider-Kette                    | YAML, CLI                            |
 | `data.cache`                     | Parquet-Lese/-Schreib-Cache                      | Provider                             |
 | `data.factory`                   | ProviderChain-Assembly aus Settings              | CLI                                  |
@@ -76,6 +80,7 @@
 | `universe.presets`               | YAML-Lesen von Presets                           | Store                                |
 | `universe.store`                 | Persistenz von geladenen Universen               | CLI                                  |
 | `universe.loader`                | Orchestriert Preset -> Store                     | YAML-Pfade                           |
+| `universe.dynamic_store`         | JSON-Persistenz fuer Katalog-Universen (P1.7)    | FMP, Streamlit                       |
 | `strategies.types`               | Action, Signal, PortfolioState, StrategyConfig   | -                                     |
 | `strategies.errors`              | StrategyError-Hierarchie                         | -                                     |
 | `strategies.base`                | StrategyBase + MultiTickerStrategyBase ABCs      | Loader                               |
@@ -141,6 +146,28 @@ bars (ParquetCache)
        -> JSON-Export
 ```
 
+### 3.4b Instrumentkatalog (Phase 1.7)
+
+```
+Dashboard "Katalog"-Tab oder CLI: python -m quant_trader.universe catalog refresh
+  -> InstrumentCatalogService.refresh()
+       -> Store.needs_refresh(max_age)?
+            | nein -> aktueller Snapshot bleibt gueltig
+            | ja   -> PublicCatalogProvider (ADR-0019, schluesselfrei):
+                        NASDAQ Trader (US-Aktien/ETFs)
+                        Xetra (EU-Instrumente + DAX/MDAX/SDAX-Gruppen)
+                        CoinGecko (Top-Kryptos)
+                      Ausfall einer Quelle degradiert, blockiert nicht
+                 -> dedupe by (ticker, exchange, currency)
+                 -> Store.write(df, snapshot_id)  [temp + os.replace, atomar]
+       -> bei Ausfall aller Quellen + vorhandenem Snapshot: Fallback auf letzten Stand
+  -> InstrumentCatalogService.search(query, filters) -> list[Instrument]
+  -> InstrumentCatalogService.build_dynamic_universe(name, filters)
+       -> DynamicUniverseStore.save(universe)  [JSON, temp + os.replace]
+  -> BacktestOrchestrator._resolve_multi_tickers / DashboardRunner._resolve_ticker
+       -> PresetRepository zuerst, DynamicUniverseStore als Fallback
+```
+
 ### 3.4 Live-Trading (Phase 5, geplant)
 
 ```
@@ -161,7 +188,7 @@ Market-Data-Tick (ib_insync Event)
 
 - Einzige Quelle: `quant_trader.core.config.Settings` (pydantic-settings, `@lru_cache`).
 - Geladen aus `.env` (gitignored) + Defaults aus `Settings`-Klasse.
-- Felder: `data_dir`, `universe_presets_path`, `db_path`, `log_level`, `alphavantage_key`, `stockdata_api_token`, `strategies_config_path` (geplant P2).
+- Felder: `data_dir`, `universe_presets_path`, `db_path`, `log_level`, `alphavantage_key`, `stockdata_api_token`, `strategies_config_path`, `catalog_path`, `dynamic_universes_path`, `catalog_max_age_hours` (P1.7).
 - **Konvention**: keine hard-coded Paths in Modulen. Immer `settings.<field>` oder Funktion mit `settings`-Parameter.
 
 ### 4.2 Logging
@@ -196,8 +223,8 @@ Pro Layer ein Basis-Error:
 
 - `AGENTS.md` - Stack, Konventionen, Verification Gate
 - `docs/STATE.md` - aktueller Projektstand, Resume-Punkt
-- `docs/requirements/nfrs.md` - 13 NFRs mit IDs
-- `docs/adr/` - 8 Architecture Decision Records
+- `docs/requirements/nfrs.md` - 14 NFRs mit IDs
+- `docs/adr/` - 19 Architecture Decision Records (0001-0019)
 - `docs/prd/<phase>/<slice>.md` - Slice-PRDs
 - `docs/uml/<phase>/<slice>.md` - Mermaid UML-Diagramme
 - `docs/userstories/<phase>/<slice>.md` - User Stories

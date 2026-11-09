@@ -89,6 +89,23 @@ def test_register_mixed(tmp_path: Path) -> None:
     assert loader.registered_names() == ["dummy_multi", "dummy_single"]
 
 
+def test_get_class_returns_registered_class(tmp_path: Path) -> None:
+    loader = StrategyLoader(tmp_path / "strategies.yaml")
+    loader.register(_DummySingle)
+    loader.register(_DummyMulti)
+    assert loader.get_class("dummy_single") is _DummySingle
+    assert loader.get_class("dummy_multi") is _DummyMulti
+
+
+def test_get_class_unknown_raises_with_available_list(tmp_path: Path) -> None:
+    loader = StrategyLoader(tmp_path / "strategies.yaml")
+    loader.register(_DummySingle)
+    with pytest.raises(UnknownStrategyError) as exc_info:
+        loader.get_class("does_not_exist")
+    assert exc_info.value.name == "does_not_exist"
+    assert exc_info.value.available == ["dummy_single"]
+
+
 def test_register_non_subclass_raises(tmp_path: Path) -> None:
     loader = StrategyLoader(tmp_path / "strategies.yaml")
     with pytest.raises(StrategyError, match="muss von StrategyBase"):

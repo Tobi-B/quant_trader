@@ -14,8 +14,9 @@ arguments without going through the full backtest pipeline.
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any, ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,18 +29,39 @@ from quant_trader.backtest.errors import (
     UnknownStrategyError,
 )
 from quant_trader.backtest.types import BacktestResult, FillMode
-from quant_trader.core.types import Granularity
+from quant_trader.core.types import Bar, Granularity
 from quant_trader.strategies import SmaCrossStrategy
+from quant_trader.strategies.base import MultiTickerStrategyBase
 from quant_trader.strategies.loader import StrategyLoader
+from quant_trader.strategies.types import PortfolioState, Signal
 from quant_trader.universe.presets import PresetRepository
 
 _RUN_ID_PATTERN = re.compile(r"^\d{8}T\d{6}$")
 
 
+class _SampleMultiTicker(MultiTickerStrategyBase):
+    name: ClassVar[str] = "sample_multi"
+    default_params: ClassVar[dict[str, Any]] = {"universe": ["SPY", "AGG"]}
+
+    def warmup_bars(self) -> int:
+        return 0
+
+    def on_universe_bars(
+        self,
+        timestamp: datetime,
+        bars_by_ticker: dict[str, Bar],
+        portfolio: PortfolioState,
+    ) -> list[Signal]:
+        return []
+
+
 @pytest.fixture
 def strategies_yaml(tmp_path: Path) -> Path:
     cfg = tmp_path / "strategies.yaml"
-    cfg.write_text("sma_cross:\n  params: {fast: 5, slow: 10}\n", encoding="utf-8")
+    cfg.write_text(
+        "sma_cross:\n  params: {fast: 5, slow: 10}\nsample_multi:\n  params: {}\n",
+        encoding="utf-8",
+    )
     return cfg
 
 
@@ -47,6 +69,7 @@ def strategies_yaml(tmp_path: Path) -> Path:
 def loader(strategies_yaml: Path) -> StrategyLoader:
     ldr = StrategyLoader(strategies_yaml)
     ldr.register(SmaCrossStrategy)
+    ldr.register(_SampleMultiTicker)
     return ldr
 
 
@@ -186,7 +209,7 @@ class TestDashboardRunnerValidation:
         orchestrator = MagicMock()
         runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
 
-        with pytest.raises(InvalidParamsError, match="Universe-Preset"):
+        with pytest.raises(InvalidParamsError, match="Universe 'does_not_exist' nicht gefunden"):
             runner.run_request(
                 strategy_name="sma_cross",
                 ticker="",
@@ -196,6 +219,67 @@ class TestDashboardRunnerValidation:
             )
 
         orchestrator.run.assert_not_called()
+
+    def test_dynamic_universe_fallback_when_no_preset_matches(
+        self,
+        loader: StrategyLoader,
+        presets: PresetRepository,
+        tmp_path: Path,
+    ) -> None:
+        from datetime import datetime
+
+        from quant_trader.universe.dynamic_store import DynamicUniverse, DynamicUniverseStore
+
+        dynamic_store = DynamicUniverseStore(tmp_path / "dynamic")
+        dynamic_store.save(
+            DynamicUniverse(
+                name="my_dynamic",
+                built_from_snapshot="snap-1",
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                filter_description="",
+                filters={},
+                tickers=("spy", "qqq"),
+            )
+        )
+        orchestrator = MagicMock()
+        orchestrator.run.return_value = _fake_result()
+        runner = DashboardRunner(
+            orchestrator=orchestrator, loader=loader, presets=presets, dynamic_store=dynamic_store
+        )
+
+        runner.run_request(
+            strategy_name="sma_cross",
+            ticker="",
+            universe_preset="my_dynamic",
+            start=date(2024, 1, 2),
+            end=date(2024, 3, 31),
+        )
+
+        _, kwargs = orchestrator.run.call_args
+        assert kwargs["universe"] == "my_dynamic"
+
+    def test_dynamic_universe_not_found_anywhere_raises_invalid_params(
+        self,
+        loader: StrategyLoader,
+        presets: PresetRepository,
+        tmp_path: Path,
+    ) -> None:
+        from quant_trader.universe.dynamic_store import DynamicUniverseStore
+
+        dynamic_store = DynamicUniverseStore(tmp_path / "dynamic")
+        orchestrator = MagicMock()
+        runner = DashboardRunner(
+            orchestrator=orchestrator, loader=loader, presets=presets, dynamic_store=dynamic_store
+        )
+
+        with pytest.raises(InvalidParamsError, match="Universe 'nowhere' nicht gefunden"):
+            runner.run_request(
+                strategy_name="sma_cross",
+                ticker="",
+                universe_preset="nowhere",
+                start=date(2024, 1, 2),
+                end=date(2024, 3, 31),
+            )
 
     def test_empty_universe_preset_raises_invalid_params(
         self,
@@ -279,6 +363,76 @@ class TestDashboardRunnerResolution:
 
         run_id = orchestrator.run.call_args.args[0]
         assert _RUN_ID_PATTERN.match(run_id), f"unexpected run_id format: {run_id}"
+
+
+class TestDashboardRunnerMultiTicker:
+    """A multi-ticker strategy never reads the Ticker field (the strategy is
+    instantiated without it - see StrategyLoader.load), so an empty ticker
+    and no universe_preset must not be treated as 'nothing selected'."""
+
+    def test_no_override_and_empty_ticker_does_not_raise(
+        self,
+        loader: StrategyLoader,
+        presets: PresetRepository,
+    ) -> None:
+        orchestrator = MagicMock()
+        orchestrator.run.return_value = _fake_result()
+        runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
+
+        runner.run_request(
+            strategy_name="sample_multi",
+            ticker="",
+            universe_preset=None,
+            start=date(2024, 1, 2),
+            end=date(2024, 3, 31),
+        )
+
+        kwargs = orchestrator.run.call_args.kwargs
+        assert kwargs["universe"] is None
+        assert kwargs["ticker"] == ""
+
+    def test_typed_ticker_is_ignored_not_forwarded(
+        self,
+        loader: StrategyLoader,
+        presets: PresetRepository,
+    ) -> None:
+        """Even if a ticker were typed, it must not reach the orchestrator as
+        `ticker=` for a multi-ticker strategy - it would be silently dropped
+        by StrategyLoader.load anyway, so forwarding it would be misleading."""
+        orchestrator = MagicMock()
+        orchestrator.run.return_value = _fake_result()
+        runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
+
+        runner.run_request(
+            strategy_name="sample_multi",
+            ticker="AAPL",
+            universe_preset=None,
+            start=date(2024, 1, 2),
+            end=date(2024, 3, 31),
+        )
+
+        kwargs = orchestrator.run.call_args.kwargs
+        assert kwargs["ticker"] == ""
+
+    def test_universe_preset_still_resolves_for_multi_ticker(
+        self,
+        loader: StrategyLoader,
+        presets: PresetRepository,
+    ) -> None:
+        orchestrator = MagicMock()
+        orchestrator.run.return_value = _fake_result()
+        runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
+
+        runner.run_request(
+            strategy_name="sample_multi",
+            ticker="",
+            universe_preset="etfs",
+            start=date(2024, 1, 2),
+            end=date(2024, 3, 31),
+        )
+
+        kwargs = orchestrator.run.call_args.kwargs
+        assert kwargs["universe"] == "etfs"
 
 
 class TestDashboardRunnerErrorPropagation:

@@ -7,14 +7,14 @@
 
 | Feld                  | Wert                                                |
 |-----------------------|------------------------------------------------------|
-| Datum                 | 2026-07-15                                          |
-| Letzter Commit (main) | TBD (slice 1.6 commit)                              |
-| Branch                | `main` (clean, alle Aenderungen gepusht)           |
-| Tests                 | 479/479 gruen (440 + 39 neue)                       |
+| Datum                 | 2026-08-28                                          |
+| Letzter Commit (main) | TBD (slice 1.7 commit)                              |
+| Branch                | `feat/p1-data-1.7-instrument-catalog`               |
+| Tests                 | 646/646 gruen (519 + 127 neue)                      |
 | Lint + Format         | gruen                                               |
 | Aktive Phase          | P1 Datenlayer (Erweiterung)                         |
-| Aktiver Slice         | Slice 1.6 (Cache Refresh) - DONE                    |
-| Open Decision         | - (NFR-Data-1 vollstaendig implementiert)           |
+| Aktiver Slice         | Slice 1.7 (Instrumentkatalog + dynamische Universen) - DONE |
+| Open Decision         | `STOCKDATA_API_TOKEN` liefert HTTP 401 - Provider in der Bar-Fetch-Kette wirkungslos (eigener Slice) |
 
 ## Phasen-Tags (chronologisch)
 
@@ -43,6 +43,8 @@
 | `p7-ops/7.1`         | Docker-Deployment (Multi-Stage + Compose + CI/CD)   | 2026-07-14 | abgeschlossen |
 | `p1-data/1.6`        | Cache Refresh (Bulk + Inkrementell + Dashboard-UI) | 2026-07-15 | abgeschlossen |
 | `p2-strategies/2.6` | Strategy Documentation Viewer (README + Dashboard-Tab) | 2026-07-15 | abgeschlossen |
+| `p3-backtest/3.7`   | Unternehmens- und Ticker-Suche im Dashboard (FMP `search`) | 2026-07-17 | abgeschlossen |
+| `p1-data/1.7`       | Zentraler Instrumentkatalog + dynamische Universen | 2026-08-28 | abgeschlossen |
 
 ## Was steht (verifiziert)
 
@@ -273,6 +275,79 @@
   `test_dashboard_strategy_tab.py` 7). 505/505 gruen; ruff +
   ruff-format + mypy --strict clean. ADR-0016 akzeptiert; Tag
   `p2-strategies/2.6`.
+- **Slice 3.7 DONE**: Unternehmens- und Ticker-Suche im Dashboard.
+  US-P3.11 erfuellt: Trader koennen ohne Tickerkenntnis Backtests starten.
+  `Instrument` (frozen dataclass) und `SearchUnavailableError(DataError)`
+  im Core. `FinancialModellingPrepProvider.search(query, *, limit, exchange)`
+  neu (FMP-Endpoint `/api/v3/search`, Free-Tier-kompatibel, gleicher Key wie
+  Bars). `CompanySearchService` in `data/instrument_search.py` (Protocol
+  `InstrumentSearchProvider`, Logging `instrument.search.start`/`.complete`/
+  `.unavailable`, mappt `DataError` -> `SearchUnavailableError`).
+  `_render_instrument_search` in `scripts/backtest_dashboard.py` mit
+  Caption, Text-Input, Button, Selectbox, "Auswahl uebernehmen" ->
+  `st.session_state["run_ticker"]`. Nur im Custom-Ticker-Modus des Run-Forms
+  eingebunden. Fehlermeldungen deutsch ("Die Unternehmenssuche ist
+  voruebergehend nicht verfuegbar. ..." / "Keine Treffer fuer '<q>' ...").
+  14 neue Tests (`test_instrument_search.py` 10, `test_dashboard_company_search.py` 4).
+  519/519 gruen; ruff + ruff-format + mypy --strict clean.
+  ADR-0017 akzeptiert; Tag `p3-backtest/3.7`.
+- **Slice 1.7 DONE**: Zentraler Instrumentkatalog + dynamische Universen.
+  `FinancialModellingPrepProvider` um neun Katalog-Methoden erweitert
+  (`fetch_stock_list`/`fetch_etf_list`/`fetch_fund_list`/`fetch_index_list`/
+  `fetch_crypto_list`/`fetch_exchanges`/`fetch_sectors`/`fetch_countries`/
+  `fetch_index_membership`); `fetch_fund_list` liefert leere Liste bei HTTP
+  401/403 (Free-Tier-Luecke, kein Mocking). `Instrument` additiv um
+  `instrument_type`/`country`/`sector`/`exchange_full_name`/`is_active`
+  erweitert. Neues Modul `data/instrument_catalog.py`:
+  `InstrumentCatalogSnapshotStore` (Parquet, atomar via temp+`os.replace`)
+  und `InstrumentCatalogService` (`refresh`/`search`/`list_filter_options`/
+  `snapshot_status`/`build_dynamic_universe`/`build_standard_universe`) mit
+  Fallback auf letzten Snapshot bei Provider-Fehlern. Neues Modul
+  `universe/dynamic_store.py`: `DynamicUniverseStore` (JSON, atomar) +
+  `DynamicUniverse`. `BacktestOrchestrator._resolve_multi_tickers` und
+  `DashboardRunner._resolve_ticker` pruefen `PresetRepository` zuerst,
+  `DynamicUniverseStore` als Fallback (Backward-Compat gewahrt). Neuer
+  Dashboard-Tab "Katalog" zwischen "Cache" und "Strategien" (Status +
+  Refresh-Button, Suche + Filter, "In Universe uebernehmen" mit
+  Ueberschreib-Bestaetigung, Standard-Universen-Buttons S&P 500/ETFs,
+  DAX 40 bleibt statischer Hinweis). CLI-Subcommands `python -m
+  quant_trader.universe catalog {refresh,status,list}` und `universe
+  {save,list,load}`. 93 neue Tests (FMP-Provider 15, Snapshot-Store 6,
+  Service 17, DynamicUniverseStore 8, Orchestrator/DashboardRunner-Fallback
+  6, Dashboard-Tab 7, CLI 14, plus Selectbox-Key-Fix aus Slice 3.8-Nacharbeit
+  und gitignore-Fix). 612/612 gruen; ruff + ruff-format clean; mypy clean
+  auf allen neuen/geaenderten Dateien (ausser vorbestehendem
+  `scripts/backtest_dashboard.py:692`-Issue, out of scope). Manuell im
+  Browser getestet: Tab rendert, Fehlerpfade (kein Snapshot, Provider-Fehler)
+  zeigen deutsche Meldungen ohne Crash. ADR-0018 akzeptiert;
+  Tag `p1-data/1.7`.
+- **Slice 1.7 Nachbesserung (ADR-0019)**: Die ADR-0018-Annahme, die
+  FMP-Listen-Endpoints seien Free-Tier-kompatibel, war falsch - alle
+  liefern `HTTP 402 Restricted Endpoint` (auch `sp500-constituent`).
+  Die Quellenschicht wurde daher auf schluesselfreie Boersenquellen
+  umgestellt: neues Modul `data/public_catalog.py` mit
+  `NasdaqTraderSource` (US-Aktien/ETFs, Symboldatei), `XetraSource`
+  (EU-Instrumente + DAX/MDAX/SDAX-Handelsgruppen, ISIN/WKN) und
+  `CoinGeckoSource` (Top-250-Kryptos), zusammengefasst in
+  `PublicCatalogProvider`, der weiterhin das `CatalogProvider`-Protocol
+  erfuellt - Service-, Snapshot-, Universe- und UI-Schicht blieben
+  unveraendert. Ausfall einer einzelnen Quelle degradiert den Katalog,
+  statt ihn zu blockieren; nur der Ausfall aller Quellen loest den
+  Snapshot-Fallback aus. Innerhalb eines Refresh werden die Rohdaten
+  memoisiert (vorher dreifacher Download pro Refresh).
+  `search` normalisiert Gattungsaktien-Ticker (`-` -> `.`), sodass
+  `BRK.B` **und** `BRK-B` dasselbe Instrument finden (US-P1.10).
+  Standard-Universen drehen sich um: `dax40` ist jetzt **dynamisch**
+  aus der Xetra-Gruppe `DAX1` (43 Eintraege = 40 Indexmitglieder + die
+  jeweils zweite Gattung bei CBK/HEN/VOW, in der UI benannt), `etfs`
+  dynamisch, `sp500` bleibt **statisch** (lizenziertes Indexprodukt,
+  in keiner freien Quelle enthalten). 32 neue Tests
+  (`test_public_catalog.py`), 646/646 gruen; ruff + mypy --strict clean.
+  Live verifiziert: `catalog refresh` liefert 18.488 Instrumente
+  (13.141 US + 5.099 EU + 250 Krypto) in ~3s ohne API-Key;
+  `catalog list --query BRK.B` und `--query BRK-B` finden beide `BRK.B`;
+  Dashboard-Button "DAX 40 aktualisieren" schreibt 43 Ticker.
+  ADR-0019 akzeptiert.
 
 ## Was offen ist
 
@@ -286,6 +361,9 @@
 | Phase 7 als Ganzes                               | DONE      | ADR-0014 accepted                   |
 | Phase 1 Slice 1.6 (Cache Refresh)               | DONE      | Tag `p1-data/1.6`                   |
 | Phase 2 Slice 2.6 (Strategy Docs Viewer)       | DONE      | Tag `p2-strategies/2.6`             |
+| Phase 3 Slice 3.7 (Company Search)             | DONE      | Tag `p3-backtest/3.7`               |
+| Phase 1 Slice 1.7 (Instrumentkatalog + dynamische Universen) | DONE | Tag `p1-data/1.7`; Quellen via ADR-0019 schluesselfrei |
+| StockData.org-Token ungueltig (HTTP 401)       | offen     | eigener Slice: Token erneuern oder Provider entfernen |
 | Phase 6 (Risk-Adjustment / Vol-Sizing)         | spaeter    | optional nach Phase 7                |
 | Phase 8+ (Cloud-Deployment, Production-Hardening) | spaeter | YAGNI fuer persoenlichen Use-Case |
 
@@ -296,16 +374,16 @@ docs/STATE.md                       <- diese Datei
 docs/00_dev_workflow.md             <- Loop-Regeln (DE)
 docs/architecture.md                <- Layered-Overview, Module-Tabelle, Datenfluss
 docs/requirements/nfrs.md           <- 14 NFRs mit IDs
-docs/adr/                           <- 14 Architecture Decision Records (0001-0014)
-docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1-P7/7.1)
+docs/adr/                           <- 19 Architecture Decision Records (0001-0019)
+docs/prd/<phase>/<slice>.md         <- Slice-PRDs (P1+P2/2.1-P3/3.7+P4/4.1+P5/5.1-P7/7.1+P1/1.7)
 docs/userstories/<phase>/...        <- US mit INVEST + Gherkin (P1-P7)
 docs/uml/<phase>/<slice>.md         <- Mermaid (3 Typen, + State Machine bei Bedarf)
 src/quant_trader/
   core/        types, errors, config, logging
-  universe/    loader (CLI fertig)
-  data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI
-strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner (alle 2.1-2.5 DONE)
-backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.6 + Risk 4.1 DONE)
+  universe/    loader + dynamic_store (NEU 1.7) (CLI fertig)
+  data/        4 Provider + FallbackDecorator + Factory + Cache + Service + CLI + instrument_search (3.7) + instrument_catalog + public_catalog (NEU 1.7)
+strategies/    types + base + loader + SmaCross + Momentum + RSI + ETF-Rotation + Runner + docs (alle 2.1-2.6 DONE)
+backtest/      engine + portfolio + fill + sizer + metrics + report + dashboard (3.1-3.7 + Risk 4.1 DONE)
 risk/          (entfaellt; Risk-Logik lebt in backtest/engine.py, ADR-0010)
 live/          Broker + Realtime-Bar-Quellen + async LiveLoop + SQLite-Journal + CLI + Auto-Reconnect + Daily-Summary (5.1-5.3 DONE)
 storage/       SQLite (Trade-Journal lebt in live/journal.py)
@@ -314,7 +392,7 @@ config/strategies.yaml  (sma_cross + momentum + rsi_mean_reversion, mit 2.3)
 Dockerfile + docker-compose.yml + .dockerignore (NEU P7)
 .github/workflows/ci.yml (CI mit test + docker jobs, NEU P7)
 scripts/entrypoint.sh (NEU P7)
-tests/         440 Tests, marker slow/live/integration; tests/ops/ fuer Deployment
+tests/         646 Tests, marker slow/live/integration; tests/ops/ fuer Deployment
 ```
 
 ## Resume-Befehl (fuer neue opencode-Session)

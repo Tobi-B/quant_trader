@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -11,7 +11,11 @@ import pytest
 
 from quant_trader.core.types import Bar, Granularity
 from quant_trader.data.cache import ParquetCache
-from quant_trader.strategies import EtfRotationStrategy, SmaCrossStrategy
+from quant_trader.strategies import (
+    EtfRotationStrategy,
+    LongCapitalShortLaborStrategy,
+    SmaCrossStrategy,
+)
 from quant_trader.strategies.base import MultiTickerStrategyBase
 from quant_trader.strategies.loader import StrategyLoader
 from quant_trader.strategies.types import PortfolioState, Signal
@@ -67,7 +71,10 @@ def strategies_yaml(tmp_path: Path) -> Path:
         "sma_cross:\n  params: {fast: 5, slow: 10}\n"
         "etf_rotation:\n  params:\n    universe: [SPY, AGG]\n    top_n: 1\n    "
         "lookback_months: 1\n    rebalance_freq: monthly\n"
-        "no_universe_multi:\n  params: {}\n",
+        "no_universe_multi:\n  params: {}\n"
+        "long_capital_short_labor:\n  params:\n    long_universe: [SPY]\n    "
+        "short_universe: [AGG]\n    lookback_months: 1\n    entry_threshold: 0.02\n"
+        "    exit_threshold: 0.0\n    rebalance_freq: monthly\n",
         encoding="utf-8",
     )
     return cfg
@@ -86,6 +93,7 @@ def loader(strategies_yaml: Path) -> StrategyLoader:
     ldr.register(SmaCrossStrategy)
     ldr.register(EtfRotationStrategy)
     ldr.register(_NoUniverseMultiStrategy)
+    ldr.register(LongCapitalShortLaborStrategy)
     return ldr
 
 
@@ -553,6 +561,99 @@ class TestCLIMainRun:
         out = capsys.readouterr().out
         assert "etf_rotation" in out
 
+    def test_run_multi_ticker_with_dynamic_universe_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        strategies_yaml: Path,
+        presets_yaml: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from datetime import datetime
+
+        from quant_trader.universe.dynamic_store import DynamicUniverse, DynamicUniverseStore
+
+        monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+        monkeypatch.setenv("STRATEGIES_CONFIG_PATH", str(strategies_yaml))
+        monkeypatch.setenv("UNIVERSE_PRESETS_PATH", str(presets_yaml))
+        monkeypatch.setenv("DYNAMIC_UNIVERSES_PATH", str(tmp_path / "dynamic_universe"))
+        monkeypatch.setattr("quant_trader.backtest.cli.configure_logging", lambda *a, **kw: None)
+        from quant_trader.core.config import get_settings
+
+        get_settings.cache_clear()
+        data_dir = tmp_path / "data"
+        for t in ("TLT", "IEF"):
+            _write_cache(ParquetCache(data_dir), t, _trend_bars(60))
+        DynamicUniverseStore(tmp_path / "dynamic_universe").save(
+            DynamicUniverse(
+                name="my_dynamic",
+                built_from_snapshot="snap-1",
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                filter_description="",
+                filters={},
+                tickers=("TLT", "IEF"),
+            )
+        )
+        reports_dir = tmp_path / "reports"
+
+        from quant_trader.backtest.cli import main
+
+        rc = main(
+            [
+                "run",
+                "--strategy",
+                "etf_rotation",
+                "--universe",
+                "my_dynamic",
+                "--start",
+                "2024-01-02",
+                "--end",
+                "2024-03-31",
+                "--no-report",
+                "--reports-dir",
+                str(reports_dir),
+            ]
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "etf_rotation" in out
+
+    def test_run_multi_ticker_unknown_universe_returns_1(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        strategies_yaml: Path,
+        presets_yaml: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+        monkeypatch.setenv("STRATEGIES_CONFIG_PATH", str(strategies_yaml))
+        monkeypatch.setenv("UNIVERSE_PRESETS_PATH", str(presets_yaml))
+        monkeypatch.setenv("DYNAMIC_UNIVERSES_PATH", str(tmp_path / "dynamic_universe"))
+        monkeypatch.setattr("quant_trader.backtest.cli.configure_logging", lambda *a, **kw: None)
+        from quant_trader.core.config import get_settings
+
+        get_settings.cache_clear()
+
+        from quant_trader.backtest.cli import main
+
+        rc = main(
+            [
+                "run",
+                "--strategy",
+                "etf_rotation",
+                "--universe",
+                "nowhere",
+                "--start",
+                "2024-01-02",
+                "--end",
+                "2024-03-31",
+            ]
+        )
+        out = capsys.readouterr()
+        assert rc == 1
+        assert "nowhere" in out.err
+
 
 class TestCLIMainList:
     def _setup(
@@ -716,6 +817,33 @@ class TestOrchestratorDirect:
                 ticker="SPY",
                 start=date(2024, 3, 31),
                 end=date(2024, 1, 2),
+            )
+
+    def test_orchestrator_rejects_universe_override_for_multi_basket_strategy(
+        self,
+        tmp_path: Path,
+        loader: StrategyLoader,
+    ) -> None:
+        """long_capital_short_labor computes its universe from long_universe +
+        short_universe; a --universe override would make the orchestrator fetch
+        bars for the wrong tickers and the strategy would silently never warm
+        up (flat equity, zero trades) instead of failing loudly."""
+        from quant_trader.backtest.errors import InvalidParamsError
+        from quant_trader.backtest.orchestrator import BacktestOrchestrator
+
+        cache = ParquetCache(tmp_path / "data")
+        _write_cache(cache, "SPY", _trend_bars(60))
+        _write_cache(cache, "AGG", _trend_bars(60))
+        orchestrator = BacktestOrchestrator(
+            cache=cache, loader=loader, reports_dir=tmp_path / "reports"
+        )
+        with pytest.raises(InvalidParamsError, match="long_capital_short_labor"):
+            orchestrator.run(
+                "rid",
+                strategy_name="long_capital_short_labor",
+                universe="sp500",
+                start=date(2024, 1, 2),
+                end=date(2024, 3, 31),
             )
 
     def test_orchestrator_no_report_skips_files(

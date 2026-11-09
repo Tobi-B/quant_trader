@@ -57,6 +57,16 @@ class MultiTickerStrategyBase(ABC):
     version: ClassVar[str] = "1.0.0"
     default_params: ClassVar[dict[str, Any]] = {}
 
+    #: Whether `--universe PRESET` / the dashboard's Universe-Preset selector
+    #: may replace this strategy's own `params["universe"]`. Strategies that
+    #: derive their tradable ticker set from more than one parameter (e.g. a
+    #: long/short pair) cannot honour an external override: the orchestrator
+    #: would then only read bars for the override's tickers while the
+    #: strategy still expects history for its own fixed set, so it silently
+    #: never warms up. Such strategies set this to False and get a clear
+    #: error instead of a backtest that quietly trades nothing.
+    supports_universe_override: ClassVar[bool] = True
+
     def __init__(self, params: dict[str, Any] | None = None) -> None:
         self.params: dict[str, Any] = {**self.default_params, **(params or {})}
 

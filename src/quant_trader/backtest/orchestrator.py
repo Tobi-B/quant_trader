@@ -155,15 +155,28 @@ class BacktestOrchestrator:
         universe_arg: str | None,
     ) -> list[str]:
         if universe_arg:
+            if not strategy.supports_universe_override:
+                raise InvalidParamsError(
+                    f"Strategie '{strategy.name}' bezieht ihr Universe aus mehreren "
+                    "eigenen Parametern (z.B. long_universe/short_universe) und "
+                    "unterstuetzt kein --universe/Universe-Preset. Bitte die "
+                    "Parameter in der Strategie-Konfiguration anpassen."
+                )
             from quant_trader.core.config import get_settings
+            from quant_trader.universe.dynamic_store import DynamicUniverseStore
 
-            repo = PresetRepository(get_settings().universe_presets_path)
+            settings = get_settings()
+            repo = PresetRepository(settings.universe_presets_path)
             try:
                 preset = repo.get(universe_arg)
-            except PresetNotFoundError as exc:
-                raise InvalidParamsError(
-                    f"Universe-Preset '{universe_arg}' nicht gefunden: {exc.name}"
-                ) from exc
+            except PresetNotFoundError:
+                dynamic_store = DynamicUniverseStore(settings.dynamic_universes_path)
+                if not dynamic_store.exists(universe_arg):
+                    raise InvalidParamsError(
+                        f"Universe '{universe_arg}' nicht gefunden (weder Preset noch "
+                        "gespeichertes Universe)"
+                    ) from None
+                return [t.upper() for t in dynamic_store.load(universe_arg).tickers]
             return [t.upper() for t in preset.tickers]
         params_universe = strategy.params.get("universe")
         if not params_universe:

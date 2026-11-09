@@ -6,11 +6,17 @@ Requires the `ui` extra: `uv sync --extra ui`.
 Tabs:
 - "Run-Form" (US-P3.9): pick strategy + ticker/universe + date range, click
   "Backtest starten", see the result (KPIs + equity curve + trades) right
-  under the form in the same tab.
+  under the form in the same tab. Im Custom-Ticker-Modus ermoeglicht eine
+  Unternehmens- und Ticker-Suche (US-P3.11) das Auffinden unbekannter Ticker
+  via FMP `search`-Endpoint.
 - "Read-Mode" (US-P3.7): browse past backtest reports from `reports/`.
 - "Vergleich" (US-P3.10): compare the latest report for every registered strategy.
 - "Cache" (US-P1.9): bulk refresh the parquet cache (alle gecachten Tickers,
   Universe-Preset, freie Ticker-Liste).
+- "Katalog" (US-P1.10..13): zentraler Instrumentkatalog aus NASDAQ Trader,
+  Xetra und CoinGecko; Suche, Filter, benannte Universen, Standard-Universen.
+- "Strategien" (US-P2.8): pro registrierter Strategie eine README mit
+  Parametern und Risiken.
 """
 
 from __future__ import annotations
@@ -47,13 +53,34 @@ from quant_trader.backtest.orchestrator import BacktestOrchestrator
 from quant_trader.backtest.report import BacktestReport, ReportLoader
 from quant_trader.backtest.types import BacktestResult
 from quant_trader.core.config import get_settings
+from quant_trader.core.errors import (
+    CatalogRefreshError,
+    CatalogUnavailableError,
+    EmptyUniverseSelectionError,
+    SearchUnavailableError,
+)
 from quant_trader.core.logging import configure_logging, get_logger
-from quant_trader.core.types import Granularity
+from quant_trader.core.types import Granularity, Instrument
 from quant_trader.data.cache import ParquetCache
 from quant_trader.data.factory import build_chain
+from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
+from quant_trader.data.instrument_catalog import (
+    CatalogStatus,
+    FilterOptions,
+    InstrumentCatalogService,
+    InstrumentCatalogSnapshotStore,
+)
+from quant_trader.data.instrument_search import (
+    CompanySearchService,
+    FmpProfilePhantomValidator,
+)
+from quant_trader.data.public_catalog import PublicCatalogProvider
 from quant_trader.data.refresh import RefreshSummary, refresh_tickers
+from quant_trader.data.sector_enrichment import SectorEnrichmentStore
 from quant_trader.strategies import StrategyDocLoader, default_loader
+from quant_trader.strategies.base import StrategyBase
 from quant_trader.strategies.loader import StrategyLoader
+from quant_trader.universe.dynamic_store import DynamicUniverseStore
 from quant_trader.universe.presets import PresetRepository
 
 if TYPE_CHECKING:
@@ -63,15 +90,25 @@ log = get_logger(__name__)
 
 _REPORTS_DIR = Path("./reports")
 _CUSTOM_TICKER_OPTION = "(Custom-Ticker)"
+_STRATEGY_DEFAULT_UNIVERSE_OPTION = "(Strategie-Standard)"
 _RUN_FORM_TAB = "Run-Form"
 _READ_MODE_TAB = "Read-Mode"
 _COMPARISON_TAB = "Vergleich"
 _CACHE_TAB = "Cache"
+_CATALOG_TAB = "Katalog"
 _STRATEGIES_TAB = "Strategien"
+_FILTER_ALL_OPTION = "(Alle)"
+_STANDARD_UNIVERSE_NAMES = ("sp500", "etfs")
 _CACHE_MODE_ALL = "Alle gecachten Tickers"
 _CACHE_MODE_UNIVERSE = "Universe"
 _CACHE_MODE_TICKERS = "Ticker-Liste"
 _CACHE_MODES = [_CACHE_MODE_ALL, _CACHE_MODE_UNIVERSE, _CACHE_MODE_TICKERS]
+_SEARCH_QUERY_KEY = "instrument_search_query"
+_SEARCH_RESULTS_KEY = "instrument_search_results"
+_SEARCH_RESULTS_QUERY_KEY = "instrument_search_results_query"
+_SEARCH_COMPLETED_QUERY_KEY = "instrument_search_completed_query"
+_SEARCH_ERROR_KEY = "instrument_search_error"
+_TICKER_KEY = "run_ticker"
 
 
 def _reports_dir() -> Path:
@@ -84,21 +121,47 @@ def _reports_dir() -> Path:
 def _build_services() -> tuple[
     ReportLoader,
     DashboardRunner,
+    CompanySearchService,
     list[str],
     list[str],
+    InstrumentCatalogService,
+    DynamicUniverseStore,
 ]:
     """Build the long-lived services once per Streamlit session."""
+    settings = get_settings()
     loader = default_loader()
-    presets = PresetRepository(get_settings().universe_presets_path)
+    presets = PresetRepository(settings.universe_presets_path)
+    dynamic_store = DynamicUniverseStore(settings.dynamic_universes_path)
     orchestrator = BacktestOrchestrator(
-        cache=ParquetCache(get_settings().data_dir),
+        cache=ParquetCache(settings.data_dir),
         loader=loader,
         reports_dir=_REPORTS_DIR,
     )
-    runner = DashboardRunner(orchestrator=orchestrator, loader=loader, presets=presets)
+    runner = DashboardRunner(
+        orchestrator=orchestrator, loader=loader, presets=presets, dynamic_store=dynamic_store
+    )
+    search_service = CompanySearchService(
+        FinancialModellingPrepProvider(api_key=settings.fmp_api_key),
+        phantom_validator=FmpProfilePhantomValidator(api_key=settings.fmp_api_key),
+    )
+    catalog_service = InstrumentCatalogService(
+        PublicCatalogProvider(),
+        InstrumentCatalogSnapshotStore(settings.catalog_path),
+        dynamic_store,
+        refresh_interval=timedelta(hours=settings.catalog_max_age_hours),
+        sector_source=SectorEnrichmentStore(settings.sector_enrichment_path),
+    )
     strategy_names = loader.registered_names()
     preset_names = presets.names()
-    return ReportLoader(_REPORTS_DIR), runner, strategy_names, preset_names
+    return (
+        ReportLoader(_REPORTS_DIR),
+        runner,
+        search_service,
+        strategy_names,
+        preset_names,
+        catalog_service,
+        dynamic_store,
+    )
 
 
 def _render_equity_curve(report: BacktestReport) -> go.Figure:
@@ -183,8 +246,81 @@ def _render_trades_table(report: BacktestReport) -> None:
     st.dataframe(df, use_container_width=True)
 
 
+def _instrument_label(instrument: Instrument) -> str:
+    return f"{instrument.name} - {instrument.ticker} ({instrument.exchange})"
+
+
+def _render_instrument_search(search_service: CompanySearchService) -> None:
+    st.caption("Unternehmen oder ETF suchen, wenn der Ticker unbekannt ist.")
+    query = st.text_input(
+        "Unternehmensname oder Ticker",
+        key=_SEARCH_QUERY_KEY,
+        placeholder="z.B. Apple oder AAPL",
+    )
+    normalized_query = query.strip()
+    search_clicked = st.button(
+        "Unternehmen suchen",
+        key="instrument_search_button",
+        disabled=not bool(normalized_query),
+    )
+
+    if search_clicked:
+        try:
+            results = search_service.search(normalized_query)
+        except SearchUnavailableError:
+            st.session_state[_SEARCH_RESULTS_KEY] = []
+            st.session_state[_SEARCH_RESULTS_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_COMPLETED_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_ERROR_KEY] = normalized_query
+        else:
+            st.session_state[_SEARCH_RESULTS_KEY] = results
+            st.session_state[_SEARCH_RESULTS_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_COMPLETED_QUERY_KEY] = normalized_query
+            st.session_state[_SEARCH_ERROR_KEY] = None
+
+    if st.session_state.get(_SEARCH_ERROR_KEY) == normalized_query:
+        st.error(
+            "Die Unternehmenssuche ist vorübergehend nicht verfügbar. "
+            "Du kannst den Ticker unten manuell eingeben."
+        )
+
+    result_query = st.session_state.get(_SEARCH_RESULTS_QUERY_KEY)
+    raw_results = st.session_state.get(_SEARCH_RESULTS_KEY, [])
+    results = (
+        [result for result in raw_results if isinstance(result, Instrument)]
+        if result_query == normalized_query
+        else []
+    )
+    if (
+        not results
+        and st.session_state.get(_SEARCH_COMPLETED_QUERY_KEY) == normalized_query
+        and st.session_state.get(_SEARCH_ERROR_KEY) != normalized_query
+    ):
+        st.info(f"Keine Treffer für '{normalized_query}'. Bitte Suchbegriff ändern.")
+    if not results:
+        return
+
+    selected_index = st.selectbox(
+        "Suchtreffer auswählen",
+        options=list(range(len(results))),
+        format_func=lambda index: _instrument_label(results[index]),
+        key="instrument_search_selected",
+    )
+    if st.button("Auswahl übernehmen", key="instrument_search_apply"):
+        st.session_state[_TICKER_KEY] = results[selected_index].ticker
+        st.session_state[_SEARCH_RESULTS_KEY] = []
+        st.session_state[_SEARCH_RESULTS_QUERY_KEY] = None
+        st.session_state[_SEARCH_COMPLETED_QUERY_KEY] = None
+        st.session_state[_SEARCH_ERROR_KEY] = None
+        st.rerun()
+
+
 def _render_run_form(
-    runner: DashboardRunner, strategy_names: list[str], preset_names: list[str]
+    runner: DashboardRunner,
+    search_service: CompanySearchService,
+    strategy_names: list[str],
+    preset_names: list[str],
+    loader: StrategyLoader,
 ) -> None:
     st.subheader("Neuen Backtest starten")
     if not strategy_names:
@@ -197,29 +333,57 @@ def _render_run_form(
         if isinstance(prefill_strategy, str) and prefill_strategy in strategy_names
         else 0
     )
-    with st.sidebar.form(key="run_form"):
+    with st.sidebar:
         st.header("Backtest-Konfiguration")
-        strategy = st.selectbox("Strategie", strategy_names, index=strategy_index)
-        universe_options = [_CUSTOM_TICKER_OPTION, *preset_names]
-        universe_choice = st.selectbox("Universe-Preset", universe_options)
-        ticker = ""
-        if universe_choice == _CUSTOM_TICKER_OPTION:
-            ticker = st.text_input("Ticker", value="", placeholder="z.B. SPY")
-        today = date.today()
-        start_default = today - timedelta(days=365 * 2)
-        end_default = today
-        start = st.date_input("Start-Datum", value=start_default)
-        end = st.date_input("End-Datum", value=end_default)
-        submitted = st.form_submit_button(
-            "Backtest starten",
-            disabled=bool(st.session_state.get("running", False)),
+        strategy = st.selectbox(
+            "Strategie", strategy_names, index=strategy_index, key="run_form_strategy"
         )
+        strategy_cls = loader.get_class(strategy)
+        is_single_ticker = issubclass(strategy_cls, StrategyBase)
+        supports_override = bool(getattr(strategy_cls, "supports_universe_override", True))
+
+        ticker = ""
+        universe_choice = _CUSTOM_TICKER_OPTION
+        if is_single_ticker:
+            # A single-ticker strategy runs on exactly one ticker - there is
+            # no "universe" concept for it, so Universe-Preset never applies.
+            _render_instrument_search(search_service)
+            ticker = st.text_input(
+                "Ticker",
+                key=_TICKER_KEY,
+                placeholder="z.B. SPY",
+            )
+        elif supports_override:
+            # Multi-ticker strategies never read the Ticker field (the
+            # strategy is instantiated without it), so only a universe
+            # selector makes sense here - not a ticker input.
+            universe_options = [_STRATEGY_DEFAULT_UNIVERSE_OPTION, *preset_names]
+            universe_choice = st.selectbox(
+                "Universe-Preset", universe_options, key="run_form_universe_preset"
+            )
+        else:
+            st.caption(
+                f"'{strategy}' bezieht sein Universe aus mehreren eigenen Parametern "
+                "(siehe Tab 'Strategien') und kann hier nicht ueberschrieben werden."
+            )
+        with st.form(key="run_form"):
+            today = date.today()
+            start_default = today - timedelta(days=365 * 2)
+            end_default = today
+            start = st.date_input("Start-Datum", value=start_default)
+            end = st.date_input("End-Datum", value=end_default)
+            submitted = st.form_submit_button(
+                "Backtest starten",
+                disabled=bool(st.session_state.get("running", False)),
+            )
 
     if not submitted:
         return
 
     universe_preset: str | None = (
-        None if universe_choice == _CUSTOM_TICKER_OPTION else universe_choice
+        None
+        if universe_choice in (_CUSTOM_TICKER_OPTION, _STRATEGY_DEFAULT_UNIVERSE_OPTION)
+        else universe_choice
     )
     st.session_state["running"] = True
     log_container = st.empty()
@@ -281,18 +445,22 @@ def _render_read_mode(report_loader: ReportLoader) -> None:
         )
         return
 
-    st.sidebar.header("Backtest-Auswahl")
+    st.subheader("Backtest-Auswahl")
     strategy_options = sorted({r.strategy_name for r in runs if r.strategy_name})
     if not strategy_options:
         st.info("Keine laufenden Strategien gefunden.")
         return
-    selected_strategy = st.sidebar.selectbox("Strategie", strategy_options)
+    select_cols = st.columns(2)
+    selected_strategy = select_cols[0].selectbox(
+        "Strategie", strategy_options, key="read_mode_strategy"
+    )
     filtered = [r for r in runs if r.strategy_name == selected_strategy]
     if not filtered:
         st.info(f"Keine Runs fuer Strategie '{selected_strategy}'.")
         return
     run_options = [r.run_id for r in filtered]
-    selected_run_id = st.sidebar.selectbox("Run", run_options)
+    selected_run_id = select_cols[1].selectbox("Run", run_options, key="read_mode_run")
+    st.divider()
     report = report_loader.load_run(selected_run_id)
     st.subheader(f"{report.strategy_name} - {report.run_id}")
     st.caption(
@@ -469,7 +637,7 @@ def _render_strategies_tab(doc_loader: StrategyDocLoader, strategy_loader: Strat
 
     documented = 0
     for name in names:
-        cls = strategy_loader._registry[name]
+        cls = strategy_loader.get_class(name)
         version = getattr(cls, "version", "1.0.0")
         st.subheader(f"{name} (v{version})")
         doc = doc_loader.load(name)
@@ -610,37 +778,272 @@ def _render_cache_tab(cache: ParquetCache, provider: DataProvider, preset_names:
     _render_summary_details(summary)
 
 
+def _render_catalog_status(
+    status: CatalogStatus, catalog_service: InstrumentCatalogService
+) -> None:
+    if status.snapshot_id is None:
+        st.warning("Noch kein Instrumentkatalog vorhanden.")
+    else:
+        age_text = (
+            "unbekannt" if status.age is None else f"{status.age.total_seconds() / 3600:.1f}h"
+        )
+        st.caption(f"{status.total} Instrumente im Katalog  |  Alter: {age_text}")
+        if status.needs_refresh:
+            st.warning(f"Katalog ist veraltet (Alter: {age_text}). Aktualisierung empfohlen.")
+
+    disabled = bool(st.session_state.get("catalog_refreshing", False))
+    if st.button("Katalog aktualisieren", key="catalog_refresh_button", disabled=disabled):
+        st.session_state["catalog_refreshing"] = True
+        try:
+            with st.spinner("Katalog wird aktualisiert..."):
+                result = catalog_service.refresh(force=True)
+        except CatalogUnavailableError as exc:
+            st.error(f"Katalog nicht verfuegbar: {exc.reason}")
+        except CatalogRefreshError as exc:
+            st.error(f"Katalog-Aktualisierung fehlgeschlagen: {exc.reason}")
+        else:
+            if result.used_fallback:
+                st.warning("Aktualisierung fehlgeschlagen, letzter bekannter Stand wird verwendet.")
+            else:
+                st.success(
+                    f"Katalog aktualisiert: {result.total} Instrumente "
+                    f"(+{result.added}/-{result.removed})"
+                )
+        finally:
+            st.session_state["catalog_refreshing"] = False
+
+
+def _filter_value(selection: str) -> str | None:
+    return None if selection == _FILTER_ALL_OPTION else selection
+
+
+def _catalog_results_dataframe(results: list[Instrument]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "Symbol": i.ticker,
+                "Name": i.name,
+                "Boerse": i.exchange,
+                "Land": i.country,
+                "Instrumentart": i.instrument_type,
+            }
+            for i in results
+        ]
+    )
+
+
+def _render_catalog_search(
+    catalog_service: InstrumentCatalogService,
+    dynamic_store: DynamicUniverseStore,
+) -> None:
+    try:
+        options: FilterOptions | None = catalog_service.list_filter_options()
+    except CatalogUnavailableError:
+        options = None
+
+    query = st.text_input(
+        "Suche (Symbol oder Name, z.B. BRK.B)", key="catalog_query", placeholder="z.B. BRK.B"
+    )
+
+    selected_type = selected_country = selected_exchange = selected_sector = _FILTER_ALL_OPTION
+    if options is not None:
+        cols = st.columns(4)
+        selected_type = cols[0].selectbox(
+            "Instrumentart",
+            [_FILTER_ALL_OPTION, *options.instrument_types],
+            key="catalog_filter_type",
+        )
+        selected_country = cols[1].selectbox(
+            "Land", [_FILTER_ALL_OPTION, *options.countries], key="catalog_filter_country"
+        )
+        selected_exchange = cols[2].selectbox(
+            "Boerse", [_FILTER_ALL_OPTION, *options.exchanges], key="catalog_filter_exchange"
+        )
+        selected_sector = cols[3].selectbox(
+            "Sektor", [_FILTER_ALL_OPTION, *options.sectors], key="catalog_filter_sector"
+        )
+
+    if st.button("Suchen", key="catalog_search_button"):
+        try:
+            results = catalog_service.search(
+                query,
+                limit=200,
+                instrument_type=_filter_value(selected_type),
+                country=_filter_value(selected_country),
+                exchange=_filter_value(selected_exchange),
+                sector=_filter_value(selected_sector),
+            )
+        except CatalogUnavailableError:
+            st.error(
+                "Der Instrumentkatalog ist noch nicht verfuegbar. "
+                "Bitte zuerst 'Katalog aktualisieren' ausfuehren."
+            )
+            st.session_state["catalog_results"] = []
+        else:
+            st.session_state["catalog_results"] = results
+
+    results = st.session_state.get("catalog_results", [])
+    if not results:
+        return
+
+    st.dataframe(_catalog_results_dataframe(results), use_container_width=True, hide_index=True)
+
+    universe_name = st.text_input("Name fuer neues Universe", key="catalog_universe_name")
+    save_clicked = st.button("In Universe uebernehmen", key="catalog_universe_save")
+    pending = st.session_state.get("catalog_pending_overwrite")
+
+    if save_clicked and universe_name.strip():
+        filters = {
+            key: value
+            for key, value in {
+                "instrument_type": _filter_value(selected_type),
+                "country": _filter_value(selected_country),
+                "exchange": _filter_value(selected_exchange),
+                "sector": _filter_value(selected_sector),
+            }.items()
+            if value is not None
+        }
+        try:
+            universe = catalog_service.build_dynamic_universe(
+                universe_name.strip(),
+                filters=filters,
+                query=query,
+                description=f"Katalog-Suche: '{query}'" if query else "Katalog-Filter",
+            )
+        except EmptyUniverseSelectionError:
+            st.warning("Die aktuelle Auswahl enthaelt keine Instrumente. Nichts gespeichert.")
+        else:
+            if dynamic_store.exists(universe.name):
+                st.session_state["catalog_pending_overwrite"] = universe
+                st.warning(f"Universe '{universe.name}' existiert bereits. Ersetzen?")
+            else:
+                dynamic_store.save(universe)
+                st.success(
+                    f"Universe '{universe.name}' gespeichert ({len(universe.tickers)} Ticker)."
+                )
+
+    if pending is not None and st.button("Ja, ersetzen", key="catalog_universe_confirm_overwrite"):
+        dynamic_store.save(pending, overwrite=True)
+        st.session_state["catalog_pending_overwrite"] = None
+        st.success(f"Universe '{pending.name}' ersetzt ({len(pending.tickers)} Ticker).")
+
+
+def _render_standard_universes(catalog_service: InstrumentCatalogService) -> None:
+    st.subheader("Standard-Universen")
+    cols = st.columns(3)
+    if cols[0].button("DAX 40 aktualisieren", key="catalog_standard_dax40"):
+        try:
+            universe = catalog_service.build_standard_universe("dax40")
+        except (CatalogUnavailableError, EmptyUniverseSelectionError) as exc:
+            st.error(f"DAX 40 konnte nicht gebaut werden: {exc}")
+        else:
+            st.success(f"'dax40' aktualisiert ({len(universe.tickers)} Ticker).")
+            st.caption(
+                "Quelle ist die DAX-Handelsgruppe der Deutschen Boerse. Sie enthaelt "
+                "auch die jeweils zweite Aktiengattung (z.B. VOW und VOW3), also "
+                "etwas mehr als die 40 Indexmitglieder."
+            )
+    if cols[1].button("ETFs aktualisieren", key="catalog_standard_etfs"):
+        try:
+            universe = catalog_service.build_standard_universe("etfs")
+        except (CatalogUnavailableError, EmptyUniverseSelectionError) as exc:
+            st.error(f"ETFs konnten nicht gebaut werden: {exc}")
+        else:
+            st.success(f"'etfs' aktualisiert ({len(universe.tickers)} Ticker).")
+    cols[2].info(
+        "S&P 500 bleibt statisch: die Indexzusammensetzung ist ein "
+        "lizenziertes Produkt und in keiner freien Quelle enthalten."
+    )
+
+    st.subheader("Sektor-Baskets (Long Capital / Short Labor)")
+    st.caption(
+        "Gebaut aus FMP-Sektorprofilen der US-Aktien. Die Sektoren werden schrittweise "
+        "nachgeladen (`python -m quant_trader.universe catalog enrich-sectors`); "
+        "solange noch keine geladen sind, bleiben beide Baskets leer. Die Strategie "
+        "liest weiterhin `long_universe`/`short_universe` aus `config/strategies.yaml` - "
+        "die Ticker aus diesen Universes dort eintragen, um sie zu verwenden."
+    )
+    basket_cols = st.columns(2)
+    for column, name, label, sectors in (
+        (basket_cols[0], "capital", "Capital", "Financial Services, Real Estate, Technology"),
+        (basket_cols[1], "labor", "Labor", "Consumer Cyclical, Industrials"),
+    ):
+        if column.button(f"{label} aktualisieren", key=f"catalog_standard_{name}"):
+            try:
+                universe = catalog_service.build_standard_universe(name)
+            except EmptyUniverseSelectionError:
+                st.warning(
+                    f"'{name}' ist leer: noch keine Sektoren fuer US-Aktien nachgeladen. "
+                    "Zuerst `catalog enrich-sectors` laufen lassen."
+                )
+            except CatalogUnavailableError as exc:
+                st.error(f"{label} konnte nicht gebaut werden: {exc}")
+            else:
+                st.success(f"'{name}' aktualisiert ({len(universe.tickers)} Ticker).")
+        column.caption(sectors)
+
+
+def _render_catalog_tab(
+    catalog_service: InstrumentCatalogService,
+    dynamic_store: DynamicUniverseStore,
+) -> None:
+    st.subheader("Instrumentkatalog")
+    st.caption(
+        "Zentraler, taeglich aktualisierter Katalog aus NASDAQ Trader (US-Aktien "
+        "und -ETFs), Deutsche Boerse Xetra (EU-Instrumente inkl. DAX) und "
+        "CoinGecko (Kryptowaehrungen)."
+    )
+    status = catalog_service.snapshot_status()
+    _render_catalog_status(status, catalog_service)
+    st.divider()
+    _render_catalog_search(catalog_service, dynamic_store)
+    st.divider()
+    _render_standard_universes(catalog_service)
+
+
 def main() -> None:
     configure_logging("INFO")
     _reports_dir()
     st.set_page_config(page_title="QuantTrader - Backtest Dashboard", layout="wide")
     st.title("QuantTrader - Backtest Dashboard")
 
-    report_loader, runner, strategy_names, preset_names = _build_services()
+    (
+        report_loader,
+        runner,
+        search_service,
+        strategy_names,
+        preset_names,
+        catalog_service,
+        dynamic_store,
+    ) = _build_services()
     cache, provider, cache_preset_names = _build_cache_services()
+    loader = default_loader()
     tab_labels = [
         _RUN_FORM_TAB,
         _READ_MODE_TAB,
         _COMPARISON_TAB,
         _CACHE_TAB,
+        _CATALOG_TAB,
         _STRATEGIES_TAB,
     ]
-    tab_run, tab_read, tab_comparison, tab_cache, tab_strategies = st.tabs(
+    tab_run, tab_read, tab_comparison, tab_cache, tab_catalog, tab_strategies = st.tabs(
         tab_labels,
         default=_tab_default(tab_labels),
         key="tabs",
     )
     with tab_run:
-        _render_run_form(runner, strategy_names, preset_names)
+        _render_run_form(runner, search_service, strategy_names, preset_names, loader)
     with tab_read:
         _render_read_mode(report_loader)
     with tab_comparison:
         _render_comparison(report_loader, strategy_names)
     with tab_cache:
         _render_cache_tab(cache, provider, cache_preset_names)
+    with tab_catalog:
+        _render_catalog_tab(catalog_service, dynamic_store)
     with tab_strategies:
         doc_loader = StrategyDocLoader(get_settings().strategy_docs_dir)
-        _render_strategies_tab(doc_loader, default_loader())
+        _render_strategies_tab(doc_loader, loader)
 
 
 if __name__ == "__main__":

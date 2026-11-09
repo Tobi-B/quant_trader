@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from quant_trader.core.errors import ProviderError, RateLimitedError, TickerNotFoundError
-from quant_trader.core.types import Bar, Granularity
+from quant_trader.core.types import Bar, ExchangeDescriptor, Granularity, SectorProfile
 from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
 
 
@@ -41,12 +41,12 @@ class _BrokenSession:
 
 def _daily_row(day: str, value: float) -> dict[str, object]:
     return {
+        "symbol": "SPY",
         "date": day,
         "open": value,
         "high": value + 1.0,
         "low": value - 1.0,
         "close": value + 0.5,
-        "adjClose": value + 0.5,
         "volume": 1000,
     }
 
@@ -65,10 +65,7 @@ def _provider(response: _FakeResponse) -> tuple[FinancialModellingPrepProvider, 
 
 
 def test_fetch_daily_happy_path() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [_daily_row("2024-01-03", 101.0), _daily_row("2024-01-02", 100.0)],
-    }
+    payload = [_daily_row("2024-01-03", 101.0), _daily_row("2024-01-02", 100.0)]
     provider, session = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 3), Granularity.DAILY)
@@ -80,17 +77,14 @@ def test_fetch_daily_happy_path() -> None:
         datetime(2024, 1, 3, 16),
     ]
     assert session.last_url == (
-        "https://financialmodelingprep.com/api/v3/historical-price-full/SPY"
-        "?from=2024-01-02&to=2024-01-03&apikey=test-key"
+        "https://financialmodelingprep.com/stable/historical-price-eod/full"
+        "?symbol=SPY&from=2024-01-02&to=2024-01-03&apikey=test-key"
     )
     assert session.last_timeout == 30
 
 
 def test_fetch_60m_happy_path() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [_intraday_row("2024-01-02 10:00:00", 100.0)],
-    }
+    payload = [_intraday_row("2024-01-02 10:00:00", 100.0)]
     provider, session = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 2), Granularity.INTRADAY_60M)
@@ -98,14 +92,12 @@ def test_fetch_60m_happy_path() -> None:
     assert len(bars) == 1
     assert bars[0].timestamp == datetime(2024, 1, 2, 10)
     assert session.last_url is not None
-    assert "/historical-chart/1hour/SPY?" in session.last_url
+    assert "/historical-chart/1hour?" in session.last_url
+    assert "symbol=SPY" in session.last_url
 
 
 def test_fetch_15m_happy_path() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [_intraday_row("2024-01-02 10:15:00", 100.0)],
-    }
+    payload = [_intraday_row("2024-01-02 10:15:00", 100.0)]
     provider, session = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 2), Granularity.INTRADAY_15M)
@@ -113,11 +105,12 @@ def test_fetch_15m_happy_path() -> None:
     assert len(bars) == 1
     assert bars[0].timestamp == datetime(2024, 1, 2, 10, 15)
     assert session.last_url is not None
-    assert "/historical-chart/15min/SPY?" in session.last_url
+    assert "/historical-chart/15min?" in session.last_url
+    assert "symbol=SPY" in session.last_url
 
 
 def test_empty_historical_raises_ticker_not_found() -> None:
-    provider, _ = _provider(_FakeResponse(200, {"symbol": "ZZZZ", "historical": []}))
+    provider, _ = _provider(_FakeResponse(200, []))
 
     with pytest.raises(TickerNotFoundError) as exc:
         provider.fetch("ZZZZ", date(2024, 1, 2), date(2024, 1, 3), Granularity.DAILY)
@@ -183,14 +176,11 @@ def test_no_api_key_raises_provider_error() -> None:
 
 
 def test_date_filter_excludes_out_of_range() -> None:
-    payload = {
-        "symbol": "SPY",
-        "historical": [
-            _daily_row("2024-01-01", 99.0),
-            _daily_row("2024-01-02", 100.0),
-            _daily_row("2024-01-04", 103.0),
-        ],
-    }
+    payload = [
+        _daily_row("2024-01-01", 99.0),
+        _daily_row("2024-01-02", 100.0),
+        _daily_row("2024-01-04", 103.0),
+    ]
     provider, _ = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 3), Granularity.DAILY)
@@ -198,10 +188,196 @@ def test_date_filter_excludes_out_of_range() -> None:
     assert [bar.timestamp.date() for bar in bars] == [date(2024, 1, 2)]
 
 
-def test_camelcase_adjclose_mapped() -> None:
-    payload = {"symbol": "SPY", "historical": [_daily_row("2024-01-02", 100.0)]}
+def test_adjclose_falls_back_to_close_when_missing() -> None:
+    payload = [_daily_row("2024-01-02", 100.0)]
     provider, _ = _provider(_FakeResponse(200, payload))
 
     bars = provider.fetch("SPY", date(2024, 1, 2), date(2024, 1, 2), Granularity.DAILY)
 
-    assert bars[0].adjusted_close == 100.5
+    assert bars[0].adjusted_close == bars[0].close == 100.5
+
+
+def test_fetch_stock_list_parses_instruments() -> None:
+    payload = [
+        {"symbol": "AAPL", "name": "Apple Inc.", "exchangeShortName": "NASDAQ"},
+        {"symbol": "BRK.B", "name": "Berkshire Hathaway Inc.", "exchangeShortName": "NYSE"},
+    ]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_stock_list()
+
+    assert [i.ticker for i in instruments] == ["AAPL", "BRK.B"]
+    assert all(i.instrument_type == "stock" for i in instruments)
+    assert session.last_url == (
+        "https://financialmodelingprep.com/stable/stock-list?apikey=test-key"
+    )
+
+
+def test_fetch_etf_list_parses_instruments() -> None:
+    payload = [{"symbol": "SPY", "name": "SPDR S&P 500", "exchangeShortName": "NYSEARCA"}]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_etf_list()
+
+    assert instruments[0].instrument_type == "etf"
+    assert "/stable/etf-list?" in (session.last_url or "")
+
+
+def test_fetch_index_list_parses_instruments() -> None:
+    payload = [{"symbol": "^GSPC", "name": "S&P 500"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_index_list()
+
+    assert instruments[0].instrument_type == "index"
+    assert instruments[0].exchange == "Unbekannt"
+
+
+def test_fetch_crypto_list_parses_instruments() -> None:
+    payload = [{"symbol": "BTCUSD", "name": "Bitcoin USD", "currency": "USD"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_crypto_list()
+
+    assert instruments[0].instrument_type == "crypto"
+    assert instruments[0].currency == "USD"
+
+
+def test_fetch_fund_list_returns_empty_on_http_403() -> None:
+    provider, _ = _provider(_FakeResponse(403, {}))
+
+    instruments = provider.fetch_fund_list()
+
+    assert instruments == []
+
+
+def test_fetch_fund_list_returns_empty_on_empty_payload() -> None:
+    provider, _ = _provider(_FakeResponse(200, []))
+
+    assert provider.fetch_fund_list() == []
+
+
+def test_fetch_fund_list_parses_when_available() -> None:
+    payload = [{"symbol": "VTSAX", "name": "Vanguard Total Stock"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    instruments = provider.fetch_fund_list()
+
+    assert instruments[0].instrument_type == "fund"
+
+
+def test_fetch_exchanges_parses_descriptors() -> None:
+    payload = [{"exchange": "NASDAQ", "name": "NASDAQ Global Market"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    exchanges = provider.fetch_exchanges()
+
+    assert exchanges == [ExchangeDescriptor(code="NASDAQ", name="NASDAQ Global Market")]
+
+
+def test_fetch_sectors_returns_sorted_unique_strings() -> None:
+    payload = [{"sector": "Technology"}, {"sector": "Energy"}, {"sector": "Technology"}]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    assert provider.fetch_sectors() == ["Energy", "Technology"]
+
+
+def test_fetch_countries_returns_sorted_unique_strings() -> None:
+    payload = ["US", "DE", "US"]
+    provider, _ = _provider(_FakeResponse(200, payload))
+
+    assert provider.fetch_countries() == ["DE", "US"]
+
+
+def test_fetch_index_membership_returns_uppercased_tickers() -> None:
+    payload = [{"symbol": "aapl"}, {"symbol": "MSFT"}]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    tickers = provider.fetch_index_membership("sp500")
+
+    assert tickers == ["AAPL", "MSFT"]
+    assert "/stable/sp500-constituent?" in (session.last_url or "")
+
+
+def test_fetch_index_membership_unknown_index_raises_provider_error() -> None:
+    provider, _ = _provider(_FakeResponse(200, []))
+
+    with pytest.raises(ProviderError):
+        provider.fetch_index_membership("dax40")
+
+
+def test_catalog_methods_rate_limited() -> None:
+    provider, _ = _provider(_FakeResponse(429, {}))
+
+    with pytest.raises(RateLimitedError):
+        provider.fetch_stock_list()
+
+
+def test_catalog_methods_no_api_key_raises_provider_error() -> None:
+    provider = FinancialModellingPrepProvider(api_key="")
+
+    with pytest.raises(ProviderError):
+        provider.fetch_stock_list()
+
+
+def test_catalog_methods_network_error_raises_provider_error() -> None:
+    provider = FinancialModellingPrepProvider(
+        api_key="test-key",
+        session=cast(requests.Session, _BrokenSession()),
+    )
+
+    with pytest.raises(ProviderError):
+        provider.fetch_etf_list()
+
+
+def test_fetch_sector_profile_parses_sector_and_industry() -> None:
+    payload = [
+        {
+            "symbol": "AAPL",
+            "companyName": "Apple Inc.",
+            "sector": "Technology",
+            "industry": "Consumer Electronics",
+            "price": 319.97,
+        }
+    ]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    profile = provider.fetch_sector_profile("aapl")
+
+    assert profile == SectorProfile(sector="Technology", industry="Consumer Electronics")
+    assert session.last_url == (
+        "https://financialmodelingprep.com/stable/profile?symbol=AAPL&apikey=test-key"
+    )
+
+
+def test_fetch_sector_profile_returns_none_for_empty_payload() -> None:
+    provider, _ = _provider(_FakeResponse(200, []))
+
+    assert provider.fetch_sector_profile("ZZZZ") is None
+
+
+def test_fetch_sector_profile_returns_none_when_sector_missing() -> None:
+    provider, _ = _provider(_FakeResponse(200, [{"symbol": "SPY", "sector": ""}]))
+
+    assert provider.fetch_sector_profile("SPY") is None
+
+
+def test_fetch_sector_profile_skips_request_for_blank_symbol() -> None:
+    provider, session = _provider(_FakeResponse(200, []))
+
+    assert provider.fetch_sector_profile("   ") is None
+    assert session.last_url is None
+
+
+def test_fetch_sector_profile_rate_limited() -> None:
+    provider, _ = _provider(_FakeResponse(429, {}))
+
+    with pytest.raises(RateLimitedError):
+        provider.fetch_sector_profile("AAPL")
+
+
+def test_fetch_sector_profile_no_api_key_raises() -> None:
+    provider = FinancialModellingPrepProvider(api_key="")
+
+    with pytest.raises(ProviderError, match="not set"):
+        provider.fetch_sector_profile("AAPL")

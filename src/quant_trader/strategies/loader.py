@@ -54,6 +54,11 @@ class StrategyLoader:
     def is_registered(self, name: str) -> bool:
         return name in self._registry
 
+    def get_class(self, name: str) -> type[StrategyBase | MultiTickerStrategyBase]:
+        if name not in self._registry:
+            raise UnknownStrategyError(name, self.registered_names())
+        return self._registry[name]
+
     def _ensure_loaded(self) -> None:
         if self._loaded:
             return

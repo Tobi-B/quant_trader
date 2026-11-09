@@ -21,6 +21,39 @@ class Preset:
         }
 
 
+@dataclass(frozen=True)
+class Instrument:
+    ticker: str
+    name: str
+    exchange: str
+    currency: str
+    instrument_type: str = ""
+    country: str = ""
+    sector: str = ""
+    exchange_full_name: str = ""
+    is_active: bool = True
+
+
+@dataclass(frozen=True)
+class ExchangeDescriptor:
+    code: str
+    name: str
+
+
+@dataclass(frozen=True)
+class SectorProfile:
+    sector: str
+    industry: str
+
+
+@dataclass(frozen=True)
+class InstrumentSnapshotMeta:
+    snapshot_id: str
+    built_at: datetime
+    source: str
+    total: int
+
+
 class Granularity(StrEnum):
     DAILY = "daily"
     INTRADAY_60M = "60m"
