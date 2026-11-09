@@ -79,3 +79,15 @@ def test_dashboard_catalog_selectboxes_and_multiselects_have_keys() -> None:
             line_number = source.count("\n", 0, match.start()) + 1
             offending.append(f"  line {line_number}: {match.group()} ...")
     assert not offending, "Widgets ohne expliziten key=:\n" + "\n".join(offending)
+
+
+def test_dashboard_has_sector_basket_buttons() -> None:
+    source = _load_dashboard_source()
+    assert "build_standard_universe(name)" in source
+    assert '"capital"' in source and '"labor"' in source
+    assert "enrich-sectors" in source
+
+
+def test_dashboard_wires_sector_source_into_catalog_service() -> None:
+    source = _load_dashboard_source()
+    assert "sector_source=SectorEnrichmentStore(settings.sector_enrichment_path)" in source

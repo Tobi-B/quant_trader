@@ -76,6 +76,7 @@ from quant_trader.data.instrument_search import (
 )
 from quant_trader.data.public_catalog import PublicCatalogProvider
 from quant_trader.data.refresh import RefreshSummary, refresh_tickers
+from quant_trader.data.sector_enrichment import SectorEnrichmentStore
 from quant_trader.strategies import StrategyDocLoader, default_loader
 from quant_trader.strategies.base import StrategyBase
 from quant_trader.strategies.loader import StrategyLoader
@@ -148,6 +149,7 @@ def _build_services() -> tuple[
         InstrumentCatalogSnapshotStore(settings.catalog_path),
         dynamic_store,
         refresh_interval=timedelta(hours=settings.catalog_max_age_hours),
+        sector_source=SectorEnrichmentStore(settings.sector_enrichment_path),
     )
     strategy_names = loader.registered_names()
     preset_names = presets.names()
@@ -952,6 +954,33 @@ def _render_standard_universes(catalog_service: InstrumentCatalogService) -> Non
         "S&P 500 bleibt statisch: die Indexzusammensetzung ist ein "
         "lizenziertes Produkt und in keiner freien Quelle enthalten."
     )
+
+    st.subheader("Sektor-Baskets (Long Capital / Short Labor)")
+    st.caption(
+        "Gebaut aus FMP-Sektorprofilen der US-Aktien. Die Sektoren werden schrittweise "
+        "nachgeladen (`python -m quant_trader.universe catalog enrich-sectors`); "
+        "solange noch keine geladen sind, bleiben beide Baskets leer. Die Strategie "
+        "liest weiterhin `long_universe`/`short_universe` aus `config/strategies.yaml` - "
+        "die Ticker aus diesen Universes dort eintragen, um sie zu verwenden."
+    )
+    basket_cols = st.columns(2)
+    for column, name, label, sectors in (
+        (basket_cols[0], "capital", "Capital", "Financial Services, Real Estate, Technology"),
+        (basket_cols[1], "labor", "Labor", "Consumer Cyclical, Industrials"),
+    ):
+        if column.button(f"{label} aktualisieren", key=f"catalog_standard_{name}"):
+            try:
+                universe = catalog_service.build_standard_universe(name)
+            except EmptyUniverseSelectionError:
+                st.warning(
+                    f"'{name}' ist leer: noch keine Sektoren fuer US-Aktien nachgeladen. "
+                    "Zuerst `catalog enrich-sectors` laufen lassen."
+                )
+            except CatalogUnavailableError as exc:
+                st.error(f"{label} konnte nicht gebaut werden: {exc}")
+            else:
+                st.success(f"'{name}' aktualisiert ({len(universe.tickers)} Ticker).")
+        column.caption(sectors)
 
 
 def _render_catalog_tab(

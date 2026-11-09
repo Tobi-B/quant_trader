@@ -12,12 +12,19 @@ import requests
 
 from quant_trader.core.errors import ProviderError, RateLimitedError, TickerNotFoundError
 from quant_trader.core.logging import get_logger
-from quant_trader.core.types import Bar, ExchangeDescriptor, Granularity, Instrument
+from quant_trader.core.types import (
+    Bar,
+    ExchangeDescriptor,
+    Granularity,
+    Instrument,
+    SectorProfile,
+)
 
 log = get_logger(__name__)
 
 _BASE_URL = "https://financialmodelingprep.com/stable"
 _SEARCH_ENDPOINT = "search-name"
+_PROFILE_ENDPOINT = "profile"
 _EOD_ENDPOINT = "historical-price-eod/full"
 _INTRADAY_ENDPOINT_MAP: dict[Granularity, str] = {
     Granularity.INTRADAY_60M: "historical-chart/1hour",
@@ -144,6 +151,35 @@ class FinancialModellingPrepProvider:
         if not payload:
             raise TickerNotFoundError(ticker)
         return _parse_historical(payload, granularity, start, end)
+
+    def fetch_sector_profile(self, symbol: str) -> SectorProfile | None:
+        """Sector/industry for one symbol from `/stable/profile`.
+
+        Unlike the catalog list endpoints, this per-symbol endpoint is
+        available on the free tier - but it costs one call per ticker
+        against NFR-Data-3's 250/day budget, so callers must batch and
+        pace it (see SectorEnrichmentService). Returns None when FMP has
+        no profile or no sector for the symbol; that is a data gap, not a
+        provider failure.
+        """
+        if not self._api_key:
+            raise ProviderError(self.name, "FINANCIAL_MODELLING_PREP_KEY not set")
+        cleaned = symbol.strip().upper()
+        if not cleaned:
+            return None
+        params = [("symbol", cleaned), ("apikey", self._api_key)]
+        url = f"{_BASE_URL}/{_PROFILE_ENDPOINT}?{urlencode(params)}"
+        payload = self._request_list(url)
+        if not payload:
+            return None
+        first = payload[0]
+        if not isinstance(first, dict):
+            return None
+        row: Mapping[str, object] = cast(Mapping[str, object], first)
+        sector = _first_text(row, "sector")
+        if not sector:
+            return None
+        return SectorProfile(sector=sector, industry=_first_text(row, "industry"))
 
     def fetch_stock_list(self) -> list[Instrument]:
         payload = self._get_list(_STOCK_LIST_ENDPOINT)

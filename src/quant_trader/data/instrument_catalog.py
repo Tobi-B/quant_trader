@@ -41,8 +41,13 @@ _SNAPSHOT_COLUMNS = [
 # Standard universes that can be rebuilt from the catalog. `sp500` is not
 # among them: S&P 500 membership is a licensed index product and none of the
 # key-free sources carry it, so it stays a static preset (ADR-0019).
-_STANDARD_UNIVERSE_NAMES = ("dax40", "etfs")
+# `capital`/`labor` are the sector baskets behind long_capital_short_labor,
+# resolved from FMP-enriched sectors (ADR-0020); they stay empty until
+# `catalog enrich-sectors` has run.
+_STANDARD_UNIVERSE_NAMES = ("dax40", "etfs", "capital", "labor")
 _ETF_TYPES = ("etf", "etn", "etc")
+_CAPITAL_SECTORS = ("Financial Services", "Real Estate", "Technology")
+_LABOR_SECTORS = ("Consumer Cyclical", "Industrials")
 
 
 class CatalogProvider(Protocol):
@@ -133,6 +138,12 @@ class InstrumentCatalogSnapshotStore:
         return age > max_age
 
 
+class SectorSource(Protocol):
+    """Anything that can map ticker -> sector (see SectorEnrichmentStore)."""
+
+    def sector_map(self) -> dict[str, str]: ...
+
+
 class InstrumentCatalogService:
     """Refreshes, searches, and builds universes from the instrument catalog."""
 
@@ -142,11 +153,13 @@ class InstrumentCatalogService:
         store: InstrumentCatalogSnapshotStore,
         dynamic_store: DynamicUniverseStore,
         refresh_interval: timedelta = timedelta(hours=24),
+        sector_source: SectorSource | None = None,
     ) -> None:
         self._provider = provider
         self._store = store
         self._dynamic_store = dynamic_store
         self._refresh_interval = refresh_interval
+        self._sector_source = sector_source
 
     def refresh(self, *, force: bool = False) -> CatalogRefreshResult:
         if not force and self._store.exists() and not self._store.needs_refresh(
@@ -347,14 +360,20 @@ class InstrumentCatalogService:
             )
         df = self._require_snapshot()
 
+        filters: dict[str, str] = {}
         if name == "etfs":
             tickers = tuple(sorted(df.loc[df["instrument_type"].isin(_ETF_TYPES), "ticker"]))
             description = "ETFs/ETNs/ETCs aus dem aktuellen Katalog"
-        else:
+        elif name == "dax40":
             members = set(self._provider.fetch_index_membership("dax40"))
             stock_tickers = set(df.loc[df["instrument_type"] == "stock", "ticker"])
             tickers = tuple(sorted(members & stock_tickers))
             description = "DAX-Handelsgruppe der Deutschen Boerse (inkl. beider Aktiengattungen)"
+        else:
+            sectors = _CAPITAL_SECTORS if name == "capital" else _LABOR_SECTORS
+            tickers = _tickers_in_sectors(df, sectors)
+            description = f"US-Aktien in den Sektoren {', '.join(sectors)} (FMP-Profil)"
+            filters = {"instrument_type": "stock", "sectors": ", ".join(sectors)}
 
         if not tickers:
             raise EmptyUniverseSelectionError(name)
@@ -364,7 +383,7 @@ class InstrumentCatalogService:
             built_from_snapshot=self._store.latest_snapshot_id() or "",
             created_at=datetime.now(UTC),
             filter_description=description,
-            filters={},
+            filters=filters,
             tickers=tickers,
         )
         self._dynamic_store.save(universe, overwrite=True)
@@ -374,7 +393,32 @@ class InstrumentCatalogService:
         df = self._store.read()
         if df is None or df.empty:
             raise CatalogUnavailableError(None, "kein Snapshot vorhanden")
-        return df
+        return self._apply_sector_enrichment(df)
+
+    def _apply_sector_enrichment(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Fill blank sectors from the enrichment store, never overwrite.
+
+        Xetra rows already carry an exchange-group sector; only the US
+        rows from NASDAQ Trader arrive blank, and those are exactly the
+        ones the enrichment backfill targets.
+        """
+        if self._sector_source is None:
+            return df
+        sector_map = self._sector_source.sector_map()
+        if not sector_map:
+            return df
+        out = df.copy()
+        blank = out["sector"].astype(str).str.len() == 0
+        out.loc[blank, "sector"] = out.loc[blank, "ticker"].map(sector_map).fillna("")
+        return out
+
+
+def _tickers_in_sectors(df: pd.DataFrame, sectors: tuple[str, ...]) -> tuple[str, ...]:
+    wanted = {s.casefold() for s in sectors}
+    mask = (df["instrument_type"] == "stock") & df["sector"].astype(str).str.casefold().isin(
+        wanted
+    )
+    return tuple(sorted(set(df.loc[mask, "ticker"])))
 
 
 def _normalise_ticker(ticker: str) -> str:

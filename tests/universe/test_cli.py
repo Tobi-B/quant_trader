@@ -6,10 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from quant_trader.core.types import ExchangeDescriptor, Instrument
+from quant_trader.core.types import ExchangeDescriptor, Instrument, SectorProfile
 from quant_trader.data.instrument_catalog import (
     InstrumentCatalogService,
     InstrumentCatalogSnapshotStore,
+)
+from quant_trader.data.sector_enrichment import (
+    SectorEnrichmentService,
+    SectorEnrichmentStore,
 )
 from quant_trader.universe import cli as cli_module
 from quant_trader.universe.cli import main
@@ -120,6 +124,7 @@ def _stock(ticker: str) -> Instrument:
         exchange="NASDAQ",
         currency="USD",
         instrument_type="stock",
+        country="US",
     )
 
 
@@ -231,3 +236,83 @@ class TestUniverseDynamicCommand:
     def test_list_empty_returns_0(self, catalog_settings: Path) -> None:
         rc = main(["universe", "list"])
         assert rc == 0
+
+
+class _FakeProfileProvider:
+    def __init__(self, sectors: dict[str, str]) -> None:
+        self._sectors = sectors
+        self.calls: list[str] = []
+
+    def fetch_sector_profile(self, symbol: str) -> SectorProfile | None:
+        self.calls.append(symbol)
+        sector = self._sectors.get(symbol)
+        return None if sector is None else SectorProfile(sector=sector, industry="")
+
+
+def _patch_enrichment_service(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    provider: _FakeProfileProvider,
+) -> SectorEnrichmentStore:
+    store = SectorEnrichmentStore(tmp_path / "catalog" / "sector_enrichment.parquet")
+    service = SectorEnrichmentService(
+        provider,
+        InstrumentCatalogSnapshotStore(tmp_path / "catalog" / "instruments.parquet"),
+        store,
+    )
+    monkeypatch.setattr(cli_module, "_build_enrichment_service", lambda: service)
+    return store
+
+
+class TestCatalogEnrichSectors:
+    def test_enrich_without_snapshot_returns_1(
+        self, catalog_settings: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_enrichment_service(monkeypatch, catalog_settings, _FakeProfileProvider({}))
+
+        assert main(["catalog", "enrich-sectors"]) == 1
+
+    def test_enrich_persists_sectors(
+        self, catalog_settings: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_catalog_service(
+            monkeypatch, catalog_settings, _FakeCatalogProvider([_stock("AAPL")])
+        )
+        assert main(["catalog", "refresh"]) == 0
+        store = _patch_enrichment_service(
+            monkeypatch, catalog_settings, _FakeProfileProvider({"AAPL": "Technology"})
+        )
+
+        assert main(["catalog", "enrich-sectors", "--limit", "5"]) == 0
+        assert store.sector_map() == {"AAPL": "Technology"}
+
+    def test_enrich_respects_limit(
+        self, catalog_settings: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_catalog_service(
+            monkeypatch,
+            catalog_settings,
+            _FakeCatalogProvider([_stock("AAPL"), _stock("JPM")]),
+        )
+        assert main(["catalog", "refresh"]) == 0
+        provider = _FakeProfileProvider({"AAPL": "Technology", "JPM": "Financial Services"})
+        _patch_enrichment_service(monkeypatch, catalog_settings, provider)
+
+        assert main(["catalog", "enrich-sectors", "--limit", "1"]) == 0
+        assert provider.calls == ["AAPL"]
+
+
+class TestCatalogBuildUniverse:
+    def test_build_capital_without_sectors_returns_1(
+        self, catalog_settings: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_catalog_service(
+            monkeypatch, catalog_settings, _FakeCatalogProvider([_stock("AAPL")])
+        )
+        assert main(["catalog", "refresh"]) == 0
+
+        assert main(["catalog", "build-universe", "--name", "capital"]) == 1
+
+    def test_build_rejects_unknown_name(self, catalog_settings: Path) -> None:
+        with pytest.raises(SystemExit):
+            main(["catalog", "build-universe", "--name", "sp500"])

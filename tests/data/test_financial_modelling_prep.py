@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from quant_trader.core.errors import ProviderError, RateLimitedError, TickerNotFoundError
-from quant_trader.core.types import Bar, ExchangeDescriptor, Granularity
+from quant_trader.core.types import Bar, ExchangeDescriptor, Granularity, SectorProfile
 from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
 
 
@@ -328,3 +328,56 @@ def test_catalog_methods_network_error_raises_provider_error() -> None:
 
     with pytest.raises(ProviderError):
         provider.fetch_etf_list()
+
+
+def test_fetch_sector_profile_parses_sector_and_industry() -> None:
+    payload = [
+        {
+            "symbol": "AAPL",
+            "companyName": "Apple Inc.",
+            "sector": "Technology",
+            "industry": "Consumer Electronics",
+            "price": 319.97,
+        }
+    ]
+    provider, session = _provider(_FakeResponse(200, payload))
+
+    profile = provider.fetch_sector_profile("aapl")
+
+    assert profile == SectorProfile(sector="Technology", industry="Consumer Electronics")
+    assert session.last_url == (
+        "https://financialmodelingprep.com/stable/profile?symbol=AAPL&apikey=test-key"
+    )
+
+
+def test_fetch_sector_profile_returns_none_for_empty_payload() -> None:
+    provider, _ = _provider(_FakeResponse(200, []))
+
+    assert provider.fetch_sector_profile("ZZZZ") is None
+
+
+def test_fetch_sector_profile_returns_none_when_sector_missing() -> None:
+    provider, _ = _provider(_FakeResponse(200, [{"symbol": "SPY", "sector": ""}]))
+
+    assert provider.fetch_sector_profile("SPY") is None
+
+
+def test_fetch_sector_profile_skips_request_for_blank_symbol() -> None:
+    provider, session = _provider(_FakeResponse(200, []))
+
+    assert provider.fetch_sector_profile("   ") is None
+    assert session.last_url is None
+
+
+def test_fetch_sector_profile_rate_limited() -> None:
+    provider, _ = _provider(_FakeResponse(429, {}))
+
+    with pytest.raises(RateLimitedError):
+        provider.fetch_sector_profile("AAPL")
+
+
+def test_fetch_sector_profile_no_api_key_raises() -> None:
+    provider = FinancialModellingPrepProvider(api_key="")
+
+    with pytest.raises(ProviderError, match="not set"):
+        provider.fetch_sector_profile("AAPL")

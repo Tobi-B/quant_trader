@@ -14,11 +14,16 @@ from quant_trader.core.errors import (
     EmptyUniverseSelectionError,
 )
 from quant_trader.core.logging import configure_logging, get_logger
+from quant_trader.data.financial_modelling_prep import FinancialModellingPrepProvider
 from quant_trader.data.instrument_catalog import (
     InstrumentCatalogService,
     InstrumentCatalogSnapshotStore,
 )
 from quant_trader.data.public_catalog import PublicCatalogProvider
+from quant_trader.data.sector_enrichment import (
+    SectorEnrichmentService,
+    SectorEnrichmentStore,
+)
 from quant_trader.universe.dynamic_store import DynamicUniverseStore, UniverseAlreadyExistsError
 from quant_trader.universe.loader import UniverseLoader
 from quant_trader.universe.presets import PresetNotFoundError, PresetRepository
@@ -34,6 +39,16 @@ def _build_catalog_service() -> InstrumentCatalogService:
         InstrumentCatalogSnapshotStore(settings.catalog_path),
         DynamicUniverseStore(settings.dynamic_universes_path),
         refresh_interval=timedelta(hours=settings.catalog_max_age_hours),
+        sector_source=SectorEnrichmentStore(settings.sector_enrichment_path),
+    )
+
+
+def _build_enrichment_service() -> SectorEnrichmentService:
+    settings = get_settings()
+    return SectorEnrichmentService(
+        FinancialModellingPrepProvider(api_key=settings.fmp_api_key),
+        InstrumentCatalogSnapshotStore(settings.catalog_path),
+        SectorEnrichmentStore(settings.sector_enrichment_path),
     )
 
 
@@ -63,6 +78,27 @@ def build_parser() -> argparse.ArgumentParser:
     catalog_list.add_argument("--query", default="", help="Suchbegriff (Symbol oder Name)")
     catalog_list.add_argument("--type", dest="instrument_type", help="Filter: Instrumentart")
     catalog_list.add_argument("--limit", type=int, default=20, help="Max. Anzahl Treffer")
+
+    catalog_enrich = catalog_sub.add_parser(
+        "enrich-sectors",
+        help="Sektoren fuer US-Aktien aus FMP-Profilen nachladen (ein Call pro Ticker)",
+    )
+    catalog_enrich.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Max. Ticker in diesem Lauf (Default: Settings.sector_enrichment_daily_limit)",
+    )
+
+    catalog_build = catalog_sub.add_parser(
+        "build-universe", help="Standard-Universe aus dem Katalog neu bauen"
+    )
+    catalog_build.add_argument(
+        "--name",
+        required=True,
+        choices=["dax40", "etfs", "capital", "labor"],
+        help="Welches Standard-Universe gebaut werden soll",
+    )
 
     universe = sub.add_parser("universe", help="Dynamische Universen verwalten")
     universe_sub = universe.add_subparsers(dest="universe_command", required=True)
@@ -177,6 +213,47 @@ def _run_catalog_command(args: argparse.Namespace) -> int:
             "catalog.cli.list",
             count=len(results),
             tickers=[i.ticker for i in results],
+        )
+        return 0
+
+    if args.catalog_command == "enrich-sectors":
+        limit = (
+            args.limit if args.limit is not None else get_settings().sector_enrichment_daily_limit
+        )
+        try:
+            enrichment = _build_enrichment_service().enrich_next(limit=limit)
+        except CatalogUnavailableError as exc:
+            log.error("catalog.cli.unavailable", reason=exc.reason)
+            return 1
+        log.info(
+            "catalog.cli.enrich.complete",
+            attempted=enrichment.attempted,
+            enriched=enrichment.enriched,
+            missing=enrichment.missing,
+            failed=enrichment.failed,
+            rate_limited=enrichment.rate_limited,
+            remaining=enrichment.remaining,
+        )
+        return 1 if enrichment.rate_limited else 0
+
+    if args.catalog_command == "build-universe":
+        try:
+            universe = service.build_standard_universe(args.name)
+        except CatalogUnavailableError as exc:
+            log.error("catalog.cli.unavailable", reason=exc.reason)
+            return 1
+        except EmptyUniverseSelectionError:
+            log.error(
+                "catalog.cli.build_universe.empty",
+                name=args.name,
+                hint="fuer capital/labor zuerst `catalog enrich-sectors` laufen lassen",
+            )
+            return 1
+        log.info(
+            "catalog.cli.build_universe.complete",
+            name=universe.name,
+            tickers=len(universe.tickers),
+            description=universe.filter_description,
         )
         return 0
 

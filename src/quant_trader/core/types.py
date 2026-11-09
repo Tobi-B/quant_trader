@@ -41,6 +41,12 @@ class ExchangeDescriptor:
 
 
 @dataclass(frozen=True)
+class SectorProfile:
+    sector: str
+    industry: str
+
+
+@dataclass(frozen=True)
 class InstrumentSnapshotMeta:
     snapshot_id: str
     built_at: datetime

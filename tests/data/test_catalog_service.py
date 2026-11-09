@@ -15,7 +15,10 @@ from quant_trader.core.errors import (
     RateLimitedError,
 )
 from quant_trader.core.types import ExchangeDescriptor, Instrument
-from quant_trader.data.instrument_catalog import InstrumentCatalogService, InstrumentCatalogSnapshotStore
+from quant_trader.data.instrument_catalog import (
+    InstrumentCatalogService,
+    InstrumentCatalogSnapshotStore,
+)
 from quant_trader.universe.dynamic_store import DynamicUniverseStore
 
 
@@ -197,9 +200,7 @@ def test_search_filters_by_instrument_type_and_country(tmp_path: Path) -> None:
 
 
 def test_search_bounds_limit(tmp_path: Path) -> None:
-    provider = _FakeCatalogProvider(
-        stocks=[_instrument(f"T{i}", itype="stock") for i in range(10)]
-    )
+    provider = _FakeCatalogProvider(stocks=[_instrument(f"T{i}", itype="stock") for i in range(10)])
     service = _service(tmp_path, provider)
     service.refresh()
 
@@ -319,3 +320,126 @@ def test_list_filter_options_derived_from_snapshot(tmp_path: Path) -> None:
     assert options.countries == ("US",)
     assert options.sectors == ("Technology",)
     assert "dax40" in options.indices
+
+
+class _FakeSectorSource:
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._mapping = mapping
+
+    def sector_map(self) -> dict[str, str]:
+        return self._mapping
+
+
+def _service_with_sectors(
+    tmp_path: Path,
+    provider: _FakeCatalogProvider,
+    mapping: dict[str, str],
+) -> InstrumentCatalogService:
+    store = InstrumentCatalogSnapshotStore(tmp_path / "catalog" / "instruments.parquet")
+    dynamic_store = DynamicUniverseStore(tmp_path / "universe")
+    return InstrumentCatalogService(
+        provider, store, dynamic_store, sector_source=_FakeSectorSource(mapping)
+    )
+
+
+def test_sector_enrichment_fills_blank_sectors_only(tmp_path: Path) -> None:
+    provider = _FakeCatalogProvider(
+        stocks=[
+            _instrument("AAPL", itype="stock", country="US"),
+            _instrument("SAP", itype="stock", country="DE", sector="DAX"),
+        ]
+    )
+    service = _service_with_sectors(tmp_path, provider, {"AAPL": "Technology", "SAP": "Technology"})
+    service.refresh()
+
+    by_ticker = {i.ticker: i for i in service.search("", limit=10)}
+
+    assert by_ticker["AAPL"].sector == "Technology"
+    assert by_ticker["SAP"].sector == "DAX"
+
+
+def test_sector_enrichment_makes_filter_and_options_work(tmp_path: Path) -> None:
+    provider = _FakeCatalogProvider(
+        stocks=[_instrument("AAPL", itype="stock"), _instrument("JPM", itype="stock")]
+    )
+    service = _service_with_sectors(
+        tmp_path, provider, {"AAPL": "Technology", "JPM": "Financial Services"}
+    )
+    service.refresh()
+
+    assert [i.ticker for i in service.search("", sector="Technology")] == ["AAPL"]
+    assert service.list_filter_options().sectors == ("Financial Services", "Technology")
+
+
+def test_no_sector_source_leaves_snapshot_untouched(tmp_path: Path) -> None:
+    provider = _FakeCatalogProvider(stocks=[_instrument("AAPL", itype="stock")])
+    service = _service(tmp_path, provider)
+    service.refresh()
+
+    assert service.search("AAPL")[0].sector == ""
+
+
+def test_build_standard_universe_capital_uses_enriched_sectors(tmp_path: Path) -> None:
+    provider = _FakeCatalogProvider(
+        stocks=[
+            _instrument("AAPL", itype="stock"),
+            _instrument("JPM", itype="stock"),
+            _instrument("VNO", itype="stock"),
+            _instrument("XRT", itype="stock"),
+        ],
+        etfs=[_instrument("XLK", itype="etf")],
+    )
+    service = _service_with_sectors(
+        tmp_path,
+        provider,
+        {
+            "AAPL": "Technology",
+            "JPM": "Financial Services",
+            "VNO": "Real Estate",
+            "XRT": "Consumer Cyclical",
+            "XLK": "Technology",
+        },
+    )
+    service.refresh()
+
+    universe = service.build_standard_universe("capital")
+
+    assert universe.tickers == ("AAPL", "JPM", "VNO")
+    assert universe.filters["instrument_type"] == "stock"
+    assert "Technology" in universe.filter_description
+
+
+def test_build_standard_universe_labor_uses_enriched_sectors(tmp_path: Path) -> None:
+    provider = _FakeCatalogProvider(
+        stocks=[
+            _instrument("AAPL", itype="stock"),
+            _instrument("XRT", itype="stock"),
+            _instrument("XLI", itype="stock"),
+        ]
+    )
+    service = _service_with_sectors(
+        tmp_path,
+        provider,
+        {"AAPL": "Technology", "XRT": "Consumer Cyclical", "XLI": "Industrials"},
+    )
+    service.refresh()
+
+    assert service.build_standard_universe("labor").tickers == ("XLI", "XRT")
+
+
+def test_build_standard_universe_capital_empty_before_enrichment(tmp_path: Path) -> None:
+    """Without enriched sectors the basket must fail loudly, not be built empty."""
+    provider = _FakeCatalogProvider(stocks=[_instrument("AAPL", itype="stock")])
+    service = _service_with_sectors(tmp_path, provider, {})
+    service.refresh()
+
+    with pytest.raises(EmptyUniverseSelectionError):
+        service.build_standard_universe("capital")
+
+
+def test_sector_match_is_case_insensitive(tmp_path: Path) -> None:
+    provider = _FakeCatalogProvider(stocks=[_instrument("AAPL", itype="stock")])
+    service = _service_with_sectors(tmp_path, provider, {"AAPL": "technology"})
+    service.refresh()
+
+    assert service.build_standard_universe("capital").tickers == ("AAPL",)

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     catalog_path: Path = Path("./data/catalog/instruments.parquet")
     dynamic_universes_path: Path = Path("./data/universe")
     catalog_max_age_hours: int = 24
+    sector_enrichment_path: Path = Path("./data/catalog/sector_enrichment.parquet")
+    sector_enrichment_daily_limit: int = 80
     strategies_config_path: Path = Path("./config/strategies.yaml")
     strategy_docs_dir: Path = Path("./docs/strategies")
     db_path: Path = Path("./quant_trader.sqlite")
